@@ -1,3 +1,8 @@
+## Eddie Atkinson's Honours Project
+For my Honours thesis I am extending the MADPN project to explore the potential effect of using monetary incentives as a means of managing network voltage. 
+
+The original README for the MADPN project is left below.
+
 <p float="left">
     <img src="img/CAP.jpg" width="51"/>
     <img src="img/efl.jpg" width="52" hspace="10"/> 
