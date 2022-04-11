@@ -1,4 +1,5 @@
 input_data/**
 output_data/**
+simulation_graphs/**
 !output_data/.folder
 !input_data/.folder
