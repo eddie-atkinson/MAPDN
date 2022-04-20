@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import random
 
 
-INPUT_DATA_PATH = Path("./input_data")
+INPUT_DATA_PATH = Path(".")
 
 # Bit of a hack, but this is the result of computing the average power factor from the Adres data set
 avg_pf = 0.9918161559771888
@@ -111,24 +111,17 @@ def downsample_data(file_path: Path, out_path: Path):
                 use_val = use_sum / use_count
             outfile.write(f"{iso_date},{solar_val},{use_val}\n")
 
-
-files_to_process = []
-for file_path in INPUT_DATA_PATH.iterdir():
-    if not str(file_path).endswith("load-pv.csv"):
-        continue
-    outfile_name = f"{file_path.stem}-reduced.csv"
-    outfile_path = file_path.parent / outfile_name
-    files_to_process.append((file_path, outfile_path))
-
-
-def test(path, out_path):
-    with open(out_path, "w") as f:
-        print("hello world", file=f)
-
-
-def main():
+def main():    
+    files_to_process = []
+    for file_path in INPUT_DATA_PATH.iterdir(): 
+        if not str(file_path).endswith("load-pv.csv"):
+            continue
+        outfile_name = f"{file_path.stem}-reduced.csv"
+        outfile_path = file_path.parent / outfile_name
+        files_to_process.append((file_path, outfile_path))
+    
     with Pool() as p:
-        p.starmap(test, files_to_process)
+        p.starmap(downsample_data, files_to_process)
 
 
 if __name__ == "__main__":

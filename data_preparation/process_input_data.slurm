@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=4
 #SBATCH --export=ALL
-#SBATCH --partition=short
+#SBATCH --partition=day
 
 start_time=$( date )
 
@@ -24,7 +24,7 @@ conda activate mapdn
 # Below is the Python file that would be run. Replace
 # lab05-sample.py by your own file name.
 SCRIPT=process_input_data.py
-SCRIPT_PATH = $MYGROUP/MAPDN/data_preparation/$SCRIPT 
+SCRIPT_PATH=$MYGROUP/MAPDN/data_preparation/$SCRIPT 
 
 SCRATCH=$MYSCRATCH/run_conda/$SLURM_JOBID
 RESULTS=$MYGROUP/conda_results
@@ -59,6 +59,7 @@ cp ${SCRIPT_PATH} ${SCRATCH}
 # files for the input data
 cd ${SCRATCH}
 
+ln -s $MYGROUP/MAPDN/data_preparation/process_input_data.py
 ln -s $MYGROUP/input_data/1642-load-pv.csv
 ln -s $MYGROUP/input_data/2335-load-pv.csv
 ln -s $MYGROUP/input_data/2361-load-pv.csv
@@ -93,13 +94,13 @@ ls -al
 # now run our Python script file
 # we can't just call main at the bottom of the file as that causes recursion
 # instead we just import main to kick it off
-python -c "from ${SCRIPT} import main; main()" 
+python -c "from process_input_data import main; main()" 
 
 
 # remove all the symbolic link files (we don't need them)
 # (the actual files that they point to are not affected by this
 # removal)
-/bin/rm data_batch_*  test_batch  data_loader.py
+/bin/rm *load-pv.csv
 
 #############################################
 # Now move the output produced by our Python script from
