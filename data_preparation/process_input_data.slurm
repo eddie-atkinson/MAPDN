@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=4
 #SBATCH --export=ALL
-#SBATCH --partition=day
+#SBATCH --partition=short
 
 start_time=$( date )
 
@@ -91,7 +91,9 @@ ln -s $MYGROUP/input_data/9922-load-pv.csv
 ls -al
 
 # now run our Python script file
-python ./${SCRIPT} 
+# we can't just call main at the bottom of the file as that causes recursion
+# instead we just import main to kick it off
+python -c "from ${SCRIPT} import main; main()" 
 
 
 # remove all the symbolic link files (we don't need them)
