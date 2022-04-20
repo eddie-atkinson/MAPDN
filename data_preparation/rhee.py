@@ -7,7 +7,7 @@ import pandapower.control as control
 import pandapower.timeseries as timeseries
 from pandapower.timeseries.data_sources.frame_data import DFData
 
-NETWORK_NAME = "J"
+NETWORK_NAME = "Q"
 INPUT_PATH = Path(f"./output_network_models/{NETWORK_NAME}")
 OUTPUT_PATH = Path("./")
 SIMULATION_RESULTS_PATH = Path(f"./simulation_results/{NETWORK_NAME}")
@@ -72,7 +72,7 @@ for col in active_df.columns:
     test_df[col] = active_df[col] - solar_df[col]
 
     
-ow = timeseries.OutputWriter(net, output_path=SIMULATION_RESULTS_PATH, output_file_type=".csv", csv_separator=",")
+ow = timeseries.OutputWriter(net, output_path=SIMULATION_RESULTS_PATH, output_file_type=".csv", csv_separator=",", write_time=660)
 ow.log_variable("res_bus_3ph", "vm_a_pu")
 ow.log_variable("res_bus_3ph", "vm_b_pu")
 ow.log_variable("res_bus_3ph", "vm_c_pu")
@@ -94,10 +94,14 @@ ow.log_variable("res_ext_grid_3ph", "p_a_mw")
 ow.log_variable("res_ext_grid_3ph", "p_b_mw")
 ow.log_variable("res_ext_grid_3ph", "p_c_mw")
 
+ow.remove_log_variable("res_bus", "vm_pu")
+ow.remove_log_variable("res_line", "loading_percent")
+
 pp.toolbox.create_continuous_elements_index(net)
 timeseries.run_timeseries(
     net, 
     run=pp.runpp_3ph, 
 #     Some intervals failed
     continue_on_divergence=True,
+    verbose=False,
 )
