@@ -3,6 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=4
 #SBATCH --export=ALL
+#SBATCH --partition=day
 
 start_time=$( date )
 
