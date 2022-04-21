@@ -61,32 +61,32 @@ cp ${SCRIPT_PATH} ${SCRATCH}
 # files for the input data
 cd ${SCRATCH}
 
-ln -s $MYGROUP/MAPDN/data_preparation/bootstrap.py
-ln -s $MYGROUP/input_data/1642-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/2335-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/2361-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/2818-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/3039-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/3456-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/3538-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/4031-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/4373-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/4767-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/5746-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/6139-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/661-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/7536-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/7719-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/7800-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/7901-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/7951-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/8156-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/8386-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/8565-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/9019-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/9160-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/9278-load-pv-reduced.csv
-ln -s $MYGROUP/input_data/9922-load-pv-reduced.csv
+cp $MYGROUP/MAPDN/data_preparation/bootstrap.py . 
+cp $MYGROUP/input_data/1642-load-pv-reduced.csv .
+cp $MYGROUP/input_data/2335-load-pv-reduced.csv .
+cp $MYGROUP/input_data/2361-load-pv-reduced.csv .
+cp $MYGROUP/input_data/2818-load-pv-reduced.csv .
+cp $MYGROUP/input_data/3039-load-pv-reduced.csv .
+cp $MYGROUP/input_data/3456-load-pv-reduced.csv .
+cp $MYGROUP/input_data/3538-load-pv-reduced.csv .
+cp $MYGROUP/input_data/4031-load-pv-reduced.csv .
+cp $MYGROUP/input_data/4373-load-pv-reduced.csv .
+cp $MYGROUP/input_data/4767-load-pv-reduced.csv .
+cp $MYGROUP/input_data/5746-load-pv-reduced.csv .
+cp $MYGROUP/input_data/6139-load-pv-reduced.csv .
+cp $MYGROUP/input_data/661-load-pv-reduced.csv .
+cp $MYGROUP/input_data/7536-load-pv-reduced.csv .
+cp $MYGROUP/input_data/7719-load-pv-reduced.csv .
+cp $MYGROUP/input_data/7800-load-pv-reduced.csv .
+cp $MYGROUP/input_data/7901-load-pv-reduced.csv .
+cp $MYGROUP/input_data/7951-load-pv-reduced.csv .
+cp $MYGROUP/input_data/8156-load-pv-reduced.csv .
+cp $MYGROUP/input_data/8386-load-pv-reduced.csv .
+cp $MYGROUP/input_data/8565-load-pv-reduced.csv .
+cp $MYGROUP/input_data/9019-load-pv-reduced.csv .
+cp $MYGROUP/input_data/9160-load-pv-reduced.csv .
+cp $MYGROUP/input_data/9278-load-pv-reduced.csv .
+cp $MYGROUP/input_data/9922-load-pv-reduced.csv .
 
 
 # we can delete the line below. It just shows the contents of
@@ -96,12 +96,13 @@ ls -al
 # now run our Python script file
 # we can't just call main at the bottom of the file as that causes recursion
 # instead we just import main to kick it off
-python -c "from process_input_data import main; main()" 
+python ${SCRIPT}
 
 
 # remove all the symbolic link files (we don't need them)
 # (the actual files that they point to are not affected by this
 # removal)
+cd ${SCRATCH}
 /bin/rm *load-pv-reduced.csv
 
 #############################################
