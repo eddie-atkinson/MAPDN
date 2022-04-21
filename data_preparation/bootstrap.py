@@ -11,7 +11,7 @@ from typing import Tuple, Any
 from datetime import datetime, timedelta
 import random
 
-INPUT_DATA_PATH = Path(".")
+INPUT_DATA_PATH = Path("./output_data")
 
 # Used for creating test and training sets later
 # Dates sourced from: https://www.calendardate.com/year2018.php
