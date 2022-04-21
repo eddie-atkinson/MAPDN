@@ -1,9 +1,11 @@
 #!/bin/bash -l
 #SBATCH --job-name=process-input-data
 #SBATCH --nodes=1
-#SBATCH --ntasks=4
+#SBATCH --ntasks=1
 #SBATCH --export=ALL
 #SBATCH --partition=day
+#SBATCH --cpus-per-task=25
+#SBATCH --mem-per-cpu=10GB
 
 start_time=$( date )
 
