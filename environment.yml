@@ -81,6 +81,7 @@ dependencies:
   - zeromq=4.3.3=he1b5a44_2
   - zipp=3.3.1=py_0
   - zlib=1.2.11=h7b6447c_3
+  - mpi4py==3.0.3
   - pip:
     - absl-py==0.10.0
     - astor==0.8.1
@@ -122,7 +123,6 @@ dependencies:
     - markdown==3.3.2
     - matplotlib==2.2.5
     - metakernel==0.27.0
-    - mpi4py==3.0.3
     - munch==2.5.0
     - networkx==2.5
     - numpy==1.19.5
