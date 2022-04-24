@@ -8,14 +8,15 @@ env_args:
   "dq_dv_weight": null
   "history": 1
   "pv_scale": 1.0
-  "demand_scale": 1.0
+  # Scale demand data to 0.7 to enable convergence
+  "demand_scale": 0.7
   "state_space": ["pv", "demand", "reactive", "vm_pu", "va_degree"]
   "v_upper": 1.05
   "v_lower": 0.95
-  "data_path": "./environments/var_voltage_control/data/J_100percent"
+  "data_path": "./environments/var_voltage_control/data/J_50percent"
   "episode_limit": 240 # in time intervals
   "action_scale": null
   "action_bias": null
   "mode": null # distributed / decentralised
   "reset_action": True
-  "3ph": True
+  "is_3ph": True

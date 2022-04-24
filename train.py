@@ -71,7 +71,7 @@ assert net_topology in [
     "case33_3min_final",
     "case141_3min_final",
     "case322_3min_final",
-    "J_100percent",
+    "J_50percent",
 ], f"{net_topology} is not a valid scenario."
 if argv.scenario == "case33_3min_final":
     env_config_dict["action_bias"] = 0.0
@@ -82,7 +82,7 @@ elif argv.scenario == "case141_3min_final":
 elif argv.scenario == "case322_3min_final":
     env_config_dict["action_bias"] = 0.0
     env_config_dict["action_scale"] = 0.8
-elif argv.scenario == "J_100percent":
+elif argv.scenario == "J_50percent":
     env_config_dict["action_bias"] = 0.0
     env_config_dict["action_scale"] = 0.8
 
