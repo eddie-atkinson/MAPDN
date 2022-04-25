@@ -15,7 +15,7 @@ class RNNAgent(nn.Module):
         # self.fc2 = nn.Linear(args.hid_size, args.action_dim)
         self.mean = nn.Linear(args.hid_size, args.action_dim)
         self.log_std = nn.Linear(args.hid_size, args.action_dim)
-        
+
         if self.args.hid_activation == 'relu':
             self.hid_activation = nn.ReLU()
         elif self.args.hid_activation == 'tanh':

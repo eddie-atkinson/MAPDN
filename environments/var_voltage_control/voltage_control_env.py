@@ -224,30 +224,10 @@ class VoltageControl(MultiAgentEnv):
         """return the global state for the power system
         the default state: voltage, active power of generators, bus state, load active power, load reactive power
         """
-        state = []
-        if "demand" in self.state_space:
-            state += list(
-                self.powergrid.res_bus["p_mw"].sort_index().to_numpy(copy=True)
-            )
-            state += list(
-                self.powergrid.res_bus["q_mvar"].sort_index().to_numpy(copy=True)
-            )
-        if "pv" in self.state_space:
-            state += list(self.powergrid.sgen["p_mw"].sort_index().to_numpy(copy=True))
-        if "reactive" in self.state_space:
-            state += list(
-                self.powergrid.sgen["q_mvar"].sort_index().to_numpy(copy=True)
-            )
-        if "vm_pu" in self.state_space:
-            state += list(
-                self.powergrid.res_bus["vm_pu"].sort_index().to_numpy(copy=True)
-            )
-        if "va_degree" in self.state_space:
-            state += list(
-                self.powergrid.res_bus["va_degree"].sort_index().to_numpy(copy=True)
-            )
-        state = np.array(state)
-        return state
+        if self._is_3ph():
+            return self._get_state_3ph()
+        else:
+            return self._get_state()
 
     def get_obs(self):
         """return the obs for each agent in the power system
@@ -255,39 +235,12 @@ class VoltageControl(MultiAgentEnv):
         each agent can only observe the state within the zone where it belongs
         """
         clusters = self._get_clusters_info()
-
         if self.args.mode == "distributed":
-            obs_zone_dict = dict()
-            zone_list = list()
-            obs_len_list = list()
-            for i in range(len(self.powergrid.sgen)):
-                obs = list()
-                zone_buses, zone, pv, q, sgen_bus = clusters[f"sgen{i}"]
-                zone_list.append(zone)
-                if not (zone in obs_zone_dict.keys()):
-                    if "demand" in self.state_space:
-                        copy_zone_buses = copy.deepcopy(zone_buses)
-                        copy_zone_buses.loc[sgen_bus]["p_mw"] += pv
-                        copy_zone_buses.loc[sgen_bus]["q_mvar"] += q
-                        obs += list(copy_zone_buses.loc[:, "p_mw"].to_numpy(copy=True))
-                        obs += list(
-                            copy_zone_buses.loc[:, "q_mvar"].to_numpy(copy=True)
-                        )
-                    if "pv" in self.state_space:
-                        obs.append(pv)
-                    if "reactive" in self.state_space:
-                        obs.append(q)
-                    if "vm_pu" in self.state_space:
-                        obs += list(zone_buses.loc[:, "vm_pu"].to_numpy(copy=True))
-                    if "va_degree" in self.state_space:
-                        # transform the voltage phase to radian
-                        obs += list(
-                            zone_buses.loc[:, "va_degree"].to_numpy(copy=True)
-                            * np.pi
-                            / 180
-                        )
-                    obs_zone_dict[zone] = np.array(obs)
-                obs_len_list.append(obs_zone_dict[zone].shape[0])
+            if self._is_3ph():
+                obs_zone_dict, zone_list, obs_len_list = self._get_obs_distributed_3ph(clusters)
+            else:
+                obs_zone_dict, zone_list, obs_len_list = self._get_obs_distributed(clusters)
+
             agents_obs = list()
             obs_max_len = max(obs_len_list)
             for zone in zone_list:
@@ -296,6 +249,7 @@ class VoltageControl(MultiAgentEnv):
                     [obs_zone, np.zeros(obs_max_len - obs_zone.shape[0])], axis=0
                 )
                 agents_obs.append(pad_obs_zone)
+        # TODO: don't have decentralised mode working yet
         elif self.args.mode == "decentralised":
             obs_len_list = list()
             zone_obs_list = list()
@@ -345,7 +299,6 @@ class VoltageControl(MultiAgentEnv):
                 agents_obs_.append(copy.deepcopy(obs_))
                 self.obs_history[i].append(copy.deepcopy(obs))
             agents_obs = agents_obs_
-
         return agents_obs
 
     def get_obs_agent(self, agent_id):
@@ -553,18 +506,23 @@ class VoltageControl(MultiAgentEnv):
         """
         clusters = dict()
         if self.args.mode == "distributed":
-            for i in range(len(self.powergrid.sgen)):
-                zone = self.powergrid.sgen["name"][i]
-                sgen_bus = self.powergrid.sgen["bus"][i]
-                pv = self.powergrid.sgen["p_mw"][i]
-                q = self.powergrid.sgen["q_mvar"][i]
-                zone_res_buses = self.powergrid.res_bus.sort_index().loc[
-                    self.powergrid.bus["zone"] == zone
+            sgens = self.get_sgen()
+            for i in range(len(sgens)):
+                sgen = sgens.iloc[i]
+                zone = sgen["name"]
+                sgen_bus = sgen["bus"]
+                pv = self._get_sgen_mw(i)
+                q = self._get_sgen_mvar(i)
+                res_buses = self._get_res_bus().sort_index()
+                zone_res_buses = res_buses[
+                    self.powergrid.bus["zone"].str.contains(zone).fillna(False)
                 ]
                 clusters[f"sgen{i}"] = (zone_res_buses, zone, pv, q, sgen_bus)
         elif self.args.mode == "decentralised":
             for i in range(self.n_agents):
-                zone_res_buses = self.powergrid.res_bus.sort_index().loc[
+                # TODO: this doesn't work for 3ph yet
+                res_buses = self._get_res_bus().sort_index()
+                zone_res_buses = res_buses.loc[
                     self.powergrid.bus["zone"] == f"zone{i+1}"
                 ]
                 sgen_res_buses = self.powergrid.sgen["bus"].loc[
@@ -585,9 +543,7 @@ class VoltageControl(MultiAgentEnv):
         the control variables we consider are the exact reactive power
         of each distributed generator
         """
-        self.powergrid.sgen["q_mvar"] = self._clip_reactive_power(
-            actions, self.powergrid.sgen["p_mw"]
-        )
+        self._set_sgen_q_mvar(actions)
 
         # solve power flow to get the latest voltage with new reactive power and old deamnd and PV active power
         try:
@@ -616,6 +572,161 @@ class VoltageControl(MultiAgentEnv):
             bowl
             bump
         """
+        if self._is_3ph():
+            return self._calc_reward_3ph(info)
+        else:
+            return self._calc_reward_1ph(info)
+
+
+    def _calc_reward_3ph(self, info):
+        v_a = self.powergrid.res_bus_3ph["vm_a_pu"].sort_index().to_numpy(copy=True)
+        v_b = self.powergrid.res_bus_3ph["vm_b_pu"].sort_index().to_numpy(copy=True)
+        v_c = self.powergrid.res_bus_3ph["vm_c_pu"].sort_index().to_numpy(copy=True)
+
+        v_a_below_lower = v_a < self.v_lower
+        v_a_above_upper = v_a > self.v_upper
+
+        v_a_out_of_control = (np.sum(v_a_below_lower) + np.sum(v_a_above_upper))
+
+        v_b_below_lower = v_b < self.v_lower
+        v_b_above_upper = v_b > self.v_upper
+
+        v_b_out_of_control = (np.sum(v_b_below_lower) + np.sum(v_b_above_upper))
+
+        v_c_below_lower = v_c < self.v_lower
+        v_c_above_upper = v_c > self.v_upper
+        v_c_out_of_control = (np.sum(v_c_below_lower) + np.sum(v_c_above_upper))
+
+
+        percent_a_out_of_control = v_a_out_of_control / v_a.shape[0]
+        percent_b_out_of_control = v_b_out_of_control / v_b.shape[0]
+        percent_c_out_of_control = v_c_out_of_control / v_c.shape[0]
+
+        percent_out_of_control = (v_a_out_of_control + v_b_out_of_control + v_c_out_of_control) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+
+        percent_a_above_upper = np.sum(v_a_above_upper) / v_a.shape[0]
+        percent_b_above_upper = np.sum(v_b_above_upper) / v_b.shape[0]
+        percent_c_above_upper = np.sum(v_c_above_upper) / v_c.shape[0]
+
+        percent_a_below_lower = np.sum(v_a_below_lower) / v_a.shape[0]
+        percent_b_below_lower = np.sum(v_b_below_lower) / v_b.shape[0]
+        percent_c_below_lower = np.sum(v_c_below_lower) / v_c.shape[0]
+
+
+        percent_above_upper = (np.sum(v_a_above_upper) + np.sum(v_b_above_upper) + np.sum(v_c_above_upper)) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+        percent_below_lower = (np.sum(v_a_below_lower) +  np.sum(v_b_below_lower) +  np.sum(v_c_below_lower)) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+
+
+        info["percentage_of_v_out_of_control"] = percent_out_of_control
+        info["percentage_of_v_a_out_of_control"] = percent_a_out_of_control
+        info["percentage_of_v_b_out_of_control"] = percent_b_out_of_control
+        info["percentage_of_v_c_out_of_control"] = percent_c_out_of_control
+
+
+        info["percentage_of_lower_than_lower_v"] = percent_below_lower
+        info["percentage_of_higher_than_upper_v"] = percent_above_upper
+
+        info["percentage_of_a_higher_than_upper_v"] = percent_a_above_upper
+        info["percentage_of_b_higher_than_upper_v"] = percent_b_above_upper
+        info["percentage_of_c_higher_than_upper_v"] = percent_c_above_upper
+
+        info["percentage_of_a_lower_than_lower_v"] = percent_a_below_lower
+        info["percentage_of_b_lower_than_lower_v"] = percent_b_below_lower
+        info["percentage_of_c_lower_than_lower_v"] = percent_c_below_lower
+
+        info["totally_controllable_ratio"] = (
+            0.0 if percent_out_of_control > 1e-3 else 1.0
+        )
+
+
+        # voltage violation
+        v_ref = 0.5 * (self.v_lower + self.v_upper)
+        average_v_a = np.mean(v_a)
+        average_v_b = np.mean(v_b)
+        average_v_c = np.mean(v_c)
+
+        average_v_deviation_a = np.mean(np.abs(v_a - v_ref))
+        average_v_deviation_b = np.mean(np.abs(v_b - v_ref))
+        average_v_deviation_c = np.mean(np.abs(v_c - v_ref))
+
+        average_v_deviation = np.sum(np.abs(v_a - v_ref)) +  np.sum(np.abs(v_b - v_ref)) + np.sum(np.abs(v_c - v_ref)) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+
+
+        average_v_a = np.mean(v_a)
+        average_v_b = np.mean(v_b)
+        average_v_c = np.mean(v_c)
+
+        average_v = np.sum(v_a) +  np.sum(v_b) + np.sum(v_c) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+
+        info["average_voltage_deviation"] = average_v_deviation
+        info["average_a_voltage_deviation"] = average_v_deviation_a
+        info["average_b_voltage_deviation"] = average_v_deviation_b
+        info["average_c_voltage_deviation"] = average_v_deviation_c
+
+
+        info["average_voltage"] = average_v
+        info["average_voltage_a"] = average_v_a
+        info["average_voltage_b"] = average_v_b
+        info["average_voltage_c"] = average_v_c
+
+        max_voltage_drop_deviation_a = np.max(
+            (v_a < self.v_lower) * (self.v_lower - v_a)
+        )
+        max_voltage_drop_deviation_b = np.max(
+            (v_b < self.v_lower) * (self.v_lower - v_b)
+        )
+        max_voltage_drop_deviation_c = np.max(
+            (v_c < self.v_lower) * (self.v_lower - v_c)
+        )
+
+        max_voltage_rise_deviation_a = np.max(
+            (v_a > self.v_upper) * (v_a - self.v_upper)
+        )
+        max_voltage_rise_deviation_b = np.max(
+            (v_b > self.v_upper) * (v_b - self.v_upper)
+        )
+        max_voltage_rise_deviation_c = np.max(
+            (v_c > self.v_upper) * (v_c - self.v_upper)
+        )
+        info["max_voltage_drop_deviation_a"] = max_voltage_drop_deviation_a
+        info["max_voltage_drop_deviation_b"] = max_voltage_drop_deviation_b
+        info["max_voltage_drop_deviation_c"] = max_voltage_drop_deviation_c
+
+        info["max_voltage_rise_deviation_a"] = max_voltage_rise_deviation_a
+        info["max_voltage_rise_deviation_b"] = max_voltage_rise_deviation_b
+        info["max_voltage_rise_deviation_c"] = max_voltage_rise_deviation_c
+
+
+
+        # reactive power (q) loss
+        q = self.powergrid.res_asymmetric_sgen["q_mvar"].sort_index().to_numpy(copy=True)
+        q_loss = np.mean(np.abs(q))
+        info["q_loss"] = q_loss
+
+        # reward function
+        ## voltage barrier function
+        v_loss_a = np.mean(self.voltage_barrier.step(v_a)) * self.voltage_weight
+        v_loss_b= np.mean(self.voltage_barrier.step(v_b)) * self.voltage_weight
+        v_loss_c = np.mean(self.voltage_barrier.step(v_c)) * self.voltage_weight
+        ## add soft constraint for line or q
+        if self.line_weight != None:
+            raise NotImplementedError("Can't compute average line loss for three phase")
+
+        elif self.q_weight != None:
+            loss = q_loss * self.q_weight + v_loss_a + v_loss_b + v_loss_c
+        else:
+            raise NotImplementedError(
+                "Please at least give one weight, either q_weight or line_weight."
+            )
+        reward = -loss
+
+        # record destroy
+        info["destroy"] = 0.0
+
+        return reward, info
+
+
+    def _calc_reward_1ph(self, info):
         # percentage of voltage out of control
         v = self.powergrid.res_bus["vm_pu"].sort_index().to_numpy(copy=True)
         percent_of_v_out_of_control = (
@@ -840,3 +951,163 @@ class VoltageControl(MultiAgentEnv):
                     sgen["q_mvar"], sgen["p_mw"]
             )
 
+    def _get_sgen_mw(self, index):
+        sgen = self.get_sgen().iloc[index]
+        if self._is_3ph():
+            phase = sgen["name"]
+            return sgen[f"p_{phase}_mw"]
+        return sgen["p_mw"]
+
+    def _get_sgen_mvar(self, index):
+        sgen = self.get_sgen().iloc[index]
+        if self._is_3ph():
+            phase = sgen["name"]
+            return sgen[f"q_{phase}_mvar"]
+        return sgen["q_mvar"]
+
+    def _get_res_bus(self):
+        if self._is_3ph():
+            return self.powergrid.res_bus_3ph
+        else:
+            return self.powergrid.res_bus
+
+    def _get_state_3ph(self):
+        state = []
+        if "demand" in self.state_space:
+            # Add per phase power
+            state += list(
+                self.powergrid.res_bus_3ph["p_a_mw"].sort_index().to_numpy(copy=True)
+            )
+            state += list(
+                self.powergrid.res_bus_3ph["p_b_mw"].sort_index().to_numpy(copy=True)
+            )
+            state += list(
+                self.powergrid.res_bus_3ph["p_c_mw"].sort_index().to_numpy(copy=True)
+            )
+            state += list(
+                self.powergrid.res_bus_3ph["q_a_mvar"].sort_index().to_numpy(copy=True)
+            )
+            state += list(
+                self.powergrid.res_bus_3ph["q_b_mvar"].sort_index().to_numpy(copy=True)
+            )
+            state += list(
+                self.powergrid.res_bus_3ph["q_c_mvar"].sort_index().to_numpy(copy=True)
+            )
+        if "pv" in self.state_space:
+            sgen = self.get_sgen()
+            state += list(sgen["p_a_mw"].sort_index().to_numpy(copy=True))
+            state += list(sgen["p_b_mw"].sort_index().to_numpy(copy=True))
+            state += list(sgen["p_c_mw"].sort_index().to_numpy(copy=True))
+
+        if "reactive" in self.state_space:
+            state += list(sgen["q_a_mvar"].sort_index().to_numpy(copy=True))
+            state += list(sgen["q_b_mvar"].sort_index().to_numpy(copy=True))
+            state += list(sgen["q_c_mvar"].sort_index().to_numpy(copy=True))
+
+        if "vm_pu" in self.state_space:
+            res_bus = self._get_res_bus()
+            state += list(res_bus["vm_a_pu"].sort_index().to_numpy(copy=True))
+            state += list(res_bus["vm_b_pu"].sort_index().to_numpy(copy=True))
+            state += list(res_bus["vm_c_pu"].sort_index().to_numpy(copy=True))
+
+        if "va_degree" in self.state_space:
+            state += list(res_bus["va_a_degree"].sort_index().to_numpy(copy=True))
+            state += list(res_bus["va_b_degree"].sort_index().to_numpy(copy=True))
+            state += list(res_bus["va_c_degree"].sort_index().to_numpy(copy=True))
+        state = np.array(state)
+        return state
+
+
+    def _get_state(self):
+        state = []
+        if "demand" in self.state_space:
+            state += list(
+                self.powergrid.res_bus["p_mw"].sort_index().to_numpy(copy=True)
+            )
+            state += list(
+                self.powergrid.res_bus["q_mvar"].sort_index().to_numpy(copy=True)
+            )
+        if "pv" in self.state_space:
+            state += list(self.powergrid.sgen["p_mw"].sort_index().to_numpy(copy=True))
+        if "reactive" in self.state_space:
+            state += list(
+                self.powergrid.sgen["q_mvar"].sort_index().to_numpy(copy=True)
+            )
+        if "vm_pu" in self.state_space:
+            state += list(
+                self.powergrid.res_bus["vm_pu"].sort_index().to_numpy(copy=True)
+            )
+        if "va_degree" in self.state_space:
+            state += list(
+                self.powergrid.res_bus["va_degree"].sort_index().to_numpy(copy=True)
+            )
+        state = np.array(state)
+        return state
+
+    def _get_obs_distributed_3ph(self, clusters):
+        obs_zone_dict = dict()
+        zone_list = list()
+        obs_len_list = list()
+        for i in range(len(self.get_sgen())):
+            obs = list()
+            zone_buses, zone, pv, q, sgen_bus = clusters[f"sgen{i}"]
+            zone_list.append(zone)
+            if not (zone in obs_zone_dict.keys()):
+                if "demand" in self.state_space:
+                    copy_zone_buses = copy.deepcopy(zone_buses)
+                    copy_zone_buses.loc[sgen_bus][f"p_{zone}_mw"] += pv
+                    copy_zone_buses.loc[sgen_bus][f"q_{zone}_mvar"] += q
+                    obs += list(copy_zone_buses.loc[:, f"p_{zone}_mw"].to_numpy(copy=True))
+                    obs += list(
+                        copy_zone_buses.loc[:, f"q_{zone}_mvar"].to_numpy(copy=True)
+                    )
+                if "pv" in self.state_space:
+                    obs.append(pv)
+                if "reactive" in self.state_space:
+                    obs.append(q)
+                if "vm_pu" in self.state_space:
+                    obs += list(zone_buses.loc[:, f"vm_{zone}_pu"].to_numpy(copy=True))
+                if "va_degree" in self.state_space:
+                    # transform the voltage phase to radian
+                    obs += list(
+                        zone_buses.loc[:, f"va_{zone}_degree"].to_numpy(copy=True)
+                        * np.pi
+                        / 180
+                    )
+                obs_zone_dict[zone] = np.array(obs)
+            obs_len_list.append(obs_zone_dict[zone].shape[0])
+        return obs_zone_dict, zone_list, obs_len_list
+
+    def _get_obs_distributed(self, clusters):
+        obs_zone_dict = dict()
+        zone_list = list()
+        obs_len_list = list()
+        for i in range(len(self.get_sgen())):
+            obs = list()
+            zone_buses, zone, pv, q, sgen_bus = clusters[f"sgen{i}"]
+            zone_list.append(zone)
+            if not (zone in obs_zone_dict.keys()):
+                if "demand" in self.state_space:
+                    copy_zone_buses = copy.deepcopy(zone_buses)
+                    copy_zone_buses.loc[sgen_bus]["p_mw"] += pv
+                    copy_zone_buses.loc[sgen_bus]["q_mvar"] += q
+                    obs += list(copy_zone_buses.loc[:, "p_mw"].to_numpy(copy=True))
+                    obs += list(
+                        copy_zone_buses.loc[:, "q_mvar"].to_numpy(copy=True)
+                    )
+                if "pv" in self.state_space:
+                    obs.append(pv)
+                if "reactive" in self.state_space:
+                    obs.append(q)
+                if "vm_pu" in self.state_space:
+                    obs += list(zone_buses.loc[:, "vm_pu"].to_numpy(copy=True))
+                if "va_degree" in self.state_space:
+                    # transform the voltage phase to radian
+                    obs += list(
+                        zone_buses.loc[:, "va_degree"].to_numpy(copy=True)
+                        * np.pi
+                        / 180
+                    )
+                obs_zone_dict[zone] = np.array(obs)
+            obs_len_list.append(obs_zone_dict[zone].shape[0])
+        return obs_zone_dict, zone_list, obs_len_list

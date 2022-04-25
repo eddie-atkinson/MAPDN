@@ -44,7 +44,7 @@ class MADDPG(Model):
         agent_ids = th.eye(self.n_).unsqueeze(0).repeat(batch_size, 1, 1).to(self.device) # shape = (b, n, n)
         if self.args.agent_id:
             obs_reshape = th.cat( (obs_reshape, agent_ids), dim=-1 ) # shape = (b, n, n*o+n)
-        
+
         # make up inputs
         act_repeat = act.unsqueeze(1).repeat(1, self.n_, 1, 1) # shape = (b, n, n, a)
         act_mask_others = agent_ids.unsqueeze(-1) # shape = (b, n, n, 1)
@@ -87,10 +87,20 @@ class MADDPG(Model):
             else:
                 means_ = means
                 log_stds_ = log_stds
+            print("running")
+            # print(hiddens.shape)
+            # print(hiddens)
+            # print(means.shape)
+            # print(means)
+            # print(log_stds)
+            # print(log_stds.shape)
+            if np.isnan(means_[0][0][0].detach().numpy()):
+                breakpoint()
             actions, log_prob_a = select_action(self.args, means_, status=status, exploration=exploration, info={'log_std': log_stds_})
             restore_mask = 1. - (actions_avail == 0).to(self.device).float()
             restore_actions = restore_mask * actions
             action_out = (means, log_stds)
+
         else:
             logits, _, hiddens = self.policy(state, last_hid=last_hid) if not target else target_policy(state, last_hid=last_hid)
             logits[actions_avail == 0] = -9999999

@@ -11,8 +11,8 @@ env_args:
   # Scale demand data to 0.7 to enable convergence
   "demand_scale": 0.7
   "state_space": ["pv", "demand", "reactive", "vm_pu", "va_degree"]
-  "v_upper": 1.05
-  "v_lower": 0.95
+  "v_upper": 1.10
+  "v_lower": 0.90
   "data_path": "./environments/var_voltage_control/data/J_50percent"
   "episode_limit": 240 # in time intervals
   "action_scale": null

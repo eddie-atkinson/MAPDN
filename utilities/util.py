@@ -64,6 +64,7 @@ def select_action(args, logits, status='train', exploration=True, info={}):
                     log_prob -= th.log(1 - y_t.pow(2) + 1e-6)
                     actions = y_t
                     return actions, log_prob
+
                 else:
                     normal = Normal(th.zeros_like(act_mean), act_std)
                     x_t = normal.rsample()
