@@ -87,15 +87,6 @@ class MADDPG(Model):
             else:
                 means_ = means
                 log_stds_ = log_stds
-            print("running")
-            # print(hiddens.shape)
-            # print(hiddens)
-            # print(means.shape)
-            # print(means)
-            # print(log_stds)
-            # print(log_stds.shape)
-            if np.isnan(means_[0][0][0].detach().numpy()):
-                breakpoint()
             actions, log_prob_a = select_action(self.args, means_, status=status, exploration=exploration, info={'log_std': log_stds_})
             restore_mask = 1. - (actions_avail == 0).to(self.device).float()
             restore_actions = restore_mask * actions

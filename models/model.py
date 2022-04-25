@@ -36,9 +36,7 @@ class Model(nn.Module):
                 update_params = (1 - self.args.target_lr) * param + self.args.target_lr * self.mixer.state_dict()[name]
                 self.target_net.mixer.state_dict()[name].copy_(update_params)
 
-    def transition_update(self, trainer, trans, stat, bp=False):
-        # if bp:
-            # breakpoint()
+    def transition_update(self, trainer, trans, stat):
         if self.args.replay:
             trainer.replay_buffer.add_experience(trans)
             replay_cond = trainer.steps>self.args.replay_warmup and len(trainer.replay_buffer.buffer)>=self.args.batch_size and trainer.steps%self.args.behaviour_update_freq==0
@@ -207,7 +205,6 @@ class Model(nn.Module):
         last_hid = self.policy_dicts[0].init_hidden()
 
         for t in range(self.args.max_steps):
-            print(f"t: {t}")
             # current state, action, value
             state_ = prep_obs(state).to(self.device).contiguous().view(1, self.n_, self.obs_dim)
             action, action_pol, log_prob_a, _, hid = self.get_actions(state_, status='train', exploration=True, actions_avail=th.tensor(trainer.env.get_avail_actions()), target=False, last_hid=last_hid)
@@ -226,10 +223,7 @@ class Model(nn.Module):
             done_ = done or t==self.args.max_steps-1
             trans = self.Transition(state,action_pol.detach().cpu().numpy(),log_prob_a,value.detach().cpu().numpy(),next_value.detach().cpu().numpy(),np.array(reward_repeat),next_state,done,done_,trainer.env.get_avail_actions(),last_hid.detach().cpu().numpy(),hid.detach().cpu().numpy())
             if not self.args.episodic:
-                if t == 60:
-                    self.transition_update(trainer, trans, stat, bp=True)
-                else:
-                    self.transition_update(trainer, trans, stat)
+                self.transition_update(trainer, trans, stat)
             else:
                 episode.append(trans)
             for k, v in info.items():
