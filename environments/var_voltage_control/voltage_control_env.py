@@ -72,10 +72,12 @@ class VoltageControl(MultiAgentEnv):
         self._set_reactive_power_boundary()
 
         # define action space and observation space
+        low = self.args.action_floor if self.args.action_floor else -self.args.action_scale + self.args.action_bias
         self.action_space = ActionSpace(
-            low=-self.args.action_scale + self.args.action_bias,
+            low=low,
             high=self.args.action_scale + self.args.action_bias,
         )
+
         self.history = getattr(args, "history", 1)
         self.state_space = getattr(
             args, "state_space", ["pv", "demand", "reactive", "vm_pu", "va_degree"]
@@ -115,8 +117,7 @@ class VoltageControl(MultiAgentEnv):
         while not solvable:
             # reset the time stamp
             if reset_time:
-                # self._episode_start_interval = self._select_start_interval()
-                self._episode_start_interval = 480
+                self._episode_start_interval = self._select_start_interval()
             # get one episode of data
             self.pv_histories = self._get_episode_pv_history()
             self.active_demand_histories = self._get_episode_active_demand_history()
@@ -139,55 +140,53 @@ class VoltageControl(MultiAgentEnv):
                 print(f"This is the reactive demand: \n{self.powergrid.load['q_mvar']}")
                 print(f"This is the res_bus: \n{self.powergrid.res_bus}")
                 solvable = False
-
         return self.get_obs(), self.get_state()
 
-    def manual_reset(self, interval):
-        """manual reset the initial date"""
-        # reset the time step, cumulative rewards and obs history
-        self.steps = 1
-        self.sum_rewards = 0
-        if self.history > 1:
-            self.obs_history = {i: [] for i in range(self.n_agents)}
+    # def manual_reset(self, interval):
+    #     """manual reset the initial date"""
+    #     # reset the time step, cumulative rewards and obs history
+    #     self.steps = 1
+    #     self.sum_rewards = 0
+    #     if self.history > 1:
+    #         self.obs_history = {i: [] for i in range(self.n_agents)}
 
-        # reset the power grid
-        self.powergrid = copy.deepcopy(self.base_powergrid)
+    #     # reset the power grid
+    #     self.powergrid = copy.deepcopy(self.base_powergrid)
 
-        # reset the time stamp
-        self._episode_start_interval = interval
-        solvable = False
-        while not solvable:
-            # get one episode of data
-            self.pv_histories = self._get_episode_pv_history()
-            self.active_demand_histories = self._get_episode_active_demand_history()
-            self.reactive_demand_histories = self._get_episode_reactive_demand_history()
-            self._set_demand_and_pv(add_noise=False)
-            # random initialise action
-            if self.args.reset_action:
-                self.powergrid.sgen["q_mvar"] = self.get_action()
-                self.powergrid.sgen["q_mvar"] = self._clip_reactive_power(
-                    self.powergrid.sgen["q_mvar"], self.powergrid.sgen["p_mw"]
-                )
-            try:
-                pp.runpp(self.powergrid)
-                solvable = True
-            except ppException:
-                print(
-                    "The power flow for the initialisation of demand and PV cannot be solved."
-                )
-                print(f"This is the pv: \n{self.powergrid.sgen['p_mw']}")
-                print(f"This is the q: \n{self.powergrid.sgen['q_mvar']}")
-                print(f"This is the active demand: \n{self.powergrid.load['p_mw']}")
-                print(f"This is the reactive demand: \n{self.powergrid.load['q_mvar']}")
-                print(f"This is the res_bus: \n{self.powergrid.res_bus}")
-                solvable = False
+    #     # reset the time stamp
+    #     self._episode_start_interval = interval
+    #     solvable = False
+    #     while not solvable:
+    #         # get one episode of data
+    #         self.pv_histories = self._get_episode_pv_history()
+    #         self.active_demand_histories = self._get_episode_active_demand_history()
+    #         self.reactive_demand_histories = self._get_episode_reactive_demand_history()
+    #         self._set_demand_and_pv(add_noise=False)
+    #         # random initialise action
+    #         if self.args.reset_action:
+    #             self.powergrid.sgen["q_mvar"] = self.get_action()
+    #             self.powergrid.sgen["q_mvar"] = self._clip_reactive_power(
+    #                 self.powergrid.sgen["q_mvar"], self.powergrid.sgen["p_mw"]
+    #             )
+    #         try:
+    #             pp.runpp(self.powergrid)
+    #             solvable = True
+    #         except ppException:
+    #             print(
+    #                 "The power flow for the initialisation of demand and PV cannot be solved."
+    #             )
+    #             print(f"This is the pv: \n{self.powergrid.sgen['p_mw']}")
+    #             print(f"This is the q: \n{self.powergrid.sgen['q_mvar']}")
+    #             print(f"This is the active demand: \n{self.powergrid.load['p_mw']}")
+    #             print(f"This is the reactive demand: \n{self.powergrid.load['q_mvar']}")
+    #             print(f"This is the res_bus: \n{self.powergrid.res_bus}")
+    #             solvable = False
 
-        return self.get_obs(), self.get_state()
+    #     return self.get_obs(), self.get_state()
 
-    def step(self, actions, add_noise=True):
+    def step(self, actions, add_noise=False):
         """function for the interaction between agent and the env each time step"""
         last_powergrid = copy.deepcopy(self.powergrid)
-
         # check whether the power balance is unsolvable
         solvable = self._take_action(actions)
         if solvable:
@@ -462,7 +461,7 @@ class VoltageControl(MultiAgentEnv):
         history = self.history
         return self.reactive_demand_histories[t : t + history, :]
 
-    def _set_demand_and_pv(self, add_noise=True):
+    def _set_demand_and_pv(self, add_noise=False):
         """optionally update the demand and pv production according to the histories with some i.i.d. gaussian noise"""
         pv = copy.copy(self._get_pv_history()[0, :])
 
@@ -557,9 +556,8 @@ class VoltageControl(MultiAgentEnv):
             print(f"This is the reactive demand: \n{self.powergrid.load['q_mvar']}")
             print(f"This is the res_bus: \n{self.powergrid.res_bus}")
             return False
-
     def _clip_reactive_power(self, reactive_actions, active_power):
-        """clip the reactive power to the hard safety range"""
+        """clip the reactive power tto the hard safety range"""
         reactive_power_constraint = np.sqrt(self.s_max[active_power.index]**2 - active_power**2)
         return reactive_power_constraint * reactive_actions
 
@@ -698,11 +696,23 @@ class VoltageControl(MultiAgentEnv):
 
 
 
-        # reactive power (q) loss
+        # active power loss
+        sgen_res = self.powergrid.res_asymmetric_sgen_3ph
         q = self.powergrid.res_asymmetric_sgen["q_mvar"].sort_index().to_numpy(copy=True)
-        q_loss = np.mean(np.abs(q))
-        info["q_loss"] = q_loss
 
+        pv_active_max = self.pv_histories[self.steps, :]
+
+        a = self._get_sgen_on_phase("a")
+        b = self._get_sgen_on_phase("b")
+        c = self._get_sgen_on_phase("c")
+
+        p_loss_a = pv_active_max[a.index] - sgen_res.loc[a.index, "p_a_mw"]
+        p_loss_b = pv_active_max[b.index] - sgen_res.loc[b.index, "p_b_mw"]
+        p_loss_c = pv_active_max[c.index] - sgen_res.loc[c.index, "p_c_mw"]
+
+        p_loss = (np.sum(p_loss_a) + np.sum(p_loss_b) + np.sum(p_loss_c)) / (p_loss_a.shape[0] + p_loss_b.shape[0] + p_loss_c.shape[0])
+
+        info["p_loss"] = p_loss
         # reward function
         ## voltage barrier function
         v_loss_a = np.mean(self.voltage_barrier.step(v_a)) * self.voltage_weight
@@ -712,11 +722,12 @@ class VoltageControl(MultiAgentEnv):
         if self.line_weight != None:
             raise NotImplementedError("Can't compute average line loss for three phase")
 
+        # TODO: This is an insane hack, but the q_loss essentially encodes our appetite for losing active power
         elif self.q_weight != None:
-            loss = q_loss * self.q_weight + v_loss_a + v_loss_b + v_loss_c
+            loss = p_loss * self.q_weight + v_loss_a + v_loss_b + v_loss_c
         else:
             raise NotImplementedError(
-                "Please at least give one weight, either q_weight or line_weight."
+                "Please at least give one qweight, either q_weight or line_weight."
             )
         reward = -loss
 
@@ -929,27 +940,59 @@ class VoltageControl(MultiAgentEnv):
         else:
             sgen["p_mw"] = pv
 
+    def _map_to_range(self, old_value, old_max, old_min, new_max, new_min):
+        old_range = (old_max -  old_min)
+        new_range = (new_max - new_min)
+        new_value = (((old_value - old_min) * new_range) / old_range) + new_min
+        return new_value
+
+        return new_value
+
     def _set_sgen_q_mvar(self, actions):
+        actions = np.trunc(actions).astype(int) % 100_000_000
+        active_proportion = actions % 10000
+        reactive_proportion = np.trunc(actions / 10000).astype(int)
+
+        reactive_proportion = self._map_to_range(reactive_proportion, 9999, 0, 0.2, -0.2)
+        active_proportion = self._map_to_range(active_proportion, 9999, 0, 1.0, 0.0)
+
         sgen = self.get_sgen()
         actions = actions[:len(sgen)]
+
         if self._is_3ph():
+
             # PV contains more profiles than we may need
             a = self._get_sgen_on_phase("a")
             b = self._get_sgen_on_phase("b")
             c = self._get_sgen_on_phase("c")
 
-            sgen.loc[a.index, "q_a_mvar"] = actions[a.index]
-            sgen.loc[b.index, "q_b_mvar"] = actions[b.index]
-            sgen.loc[c.index, "q_c_mvar"] = actions[c.index]
+            s_a = sgen.loc[a.index, "p_a_mw"] * active_proportion[a.index]
+            q_a = s_a * reactive_proportion[a.index]
+            p_a = np.sqrt(s_a ** 2 - q_a**2)
 
-            for (phase_df, phase) in zip([a, b, c], PHASES):
-                sgen.loc[phase_df.index, f"q_{phase}_mvar"] = self._clip_reactive_power(sgen.loc[phase_df.index, f"q_{phase}_mvar"], sgen.loc[phase_df.index, f"p_{phase}_mw"])
+            s_b = sgen.loc[b.index, "p_b_mw"] * active_proportion[b.index]
+            q_b = s_b * reactive_proportion[b.index]
+            p_b = np.sqrt(s_b** 2 - q_b**2)
+
+            s_c = sgen.loc[c.index, "p_a_mw"] * active_proportion[c.index]
+            q_c = s_c * reactive_proportion[c.index]
+            p_c = np.sqrt(s_c ** 2 - q_c**2)
+
+
+            sgen.loc[a.index, "p_a_mw"] = p_a
+            sgen.loc[a.index, "q_a_mvar"] = q_a
+            sgen.loc[b.index, "p_b_mw"] = p_b
+            sgen.loc[b.index, "q_b_mvar"] = q_b
+            sgen.loc[c.index, "p_a_mw"] = p_c
+            sgen.loc[c.index, "q_c_mvar"] = q_c
 
         else:
-            sgen["q_mvar"] = actions
-            sgen["q_mvar"] = self._clip_reactive_power(
-                    sgen["q_mvar"], sgen["p_mw"]
-            )
+            s = sgen["p_mw"] * active_proportion
+            q = s * reactive_proportion
+            p = np.sqrt(s ** 2 - q**2)
+            sgen["q_mvar"] = q
+            sgen["p_mw"] = p
+
 
     def _get_sgen_mw(self, index):
         sgen = self.get_sgen().iloc[index]

@@ -126,7 +126,10 @@ def translate_action(args, action, env):
         actions = action.detach().squeeze()
         # clip and scale action to correct range for safety
         cp_actions = th.clamp(actions, min=-1.0, max=1.0)
-        low = args.action_bias - args.action_scale
+        if env.args.action_floor:
+            low = env.args.action_floor
+        else:
+            low = args.action_bias - args.action_scale
         high = args.action_bias + args.action_scale
         cp_actions = 0.5 * (cp_actions + 1.0) * (high - low) + low
         cp_actions = cp_actions.cpu().numpy()

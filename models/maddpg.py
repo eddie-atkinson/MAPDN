@@ -92,6 +92,7 @@ class MADDPG(Model):
             restore_actions = restore_mask * actions
             action_out = (means, log_stds)
 
+
         else:
             logits, _, hiddens = self.policy(state, last_hid=last_hid) if not target else target_policy(state, last_hid=last_hid)
             logits[actions_avail == 0] = -9999999
