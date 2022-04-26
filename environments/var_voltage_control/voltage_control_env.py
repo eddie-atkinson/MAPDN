@@ -318,21 +318,19 @@ class VoltageControl(MultiAgentEnv):
 
     def get_action(self):
         """return the action according to a uniform distribution over [action_lower, action_upper)"""
+        n_actions = self.get_total_actions()
         if self._is_3ph():
-            size = self.powergrid.asymmetric_sgen["q_a_mvar"].values.shape
+            size = (self.powergrid.asymmetric_sgen["q_a_mvar"].values.shape[0], n_actions)
         else:
-            size = self.powergrid.sgen["q_mvar"].values.shape
-        apparent = np.random.uniform(
+            size = (self.powergrid.sgen["q_mvar"].values.shape[0], n_actions)
+
+        actions = np.random.uniform(
             low=self.action_space.low,
             high=self.action_space.high,
             size=size,
         )
-        reactive = np.random.uniform(
-            low=self.action_space.low,
-            high=self.action_space.high,
-            size=size,
-        )
-        return apparent, reactive
+
+        return actions
 
     def get_total_actions(self):
         """return the total number of actions an agent could ever take"""
@@ -957,8 +955,8 @@ class VoltageControl(MultiAgentEnv):
         return new_value
 
     def _set_sgen_q_mvar(self, actions):
-
-        apparent, reactive = actions
+        apparent = actions[:, 0]
+        reactive = actions[:, 1]
         apparent_proportion = self._map_to_range(apparent, 1.0, -1.0, 1.0, 0.0)
         reactive_proportion = self._map_to_range(reactive, 1.0, -1.0, 0.2, -0.2)
 

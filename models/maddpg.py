@@ -81,12 +81,15 @@ class MADDPG(Model):
         target_policy = self.target_net.policy if self.args.target else self.policy
         if self.args.continuous:
             means, log_stds, hiddens = self.policy(state, last_hid=last_hid) if not target else target_policy(state, last_hid=last_hid)
-            if means.size(-1) > 1:
-                means_ = means.sum(dim=1, keepdim=True)
-                log_stds_ = log_stds.sum(dim=1, keepdim=True)
-            else:
-                means_ = means
-                log_stds_ = log_stds
+            # NOTE: this totally breaks the decentralised mode you need to uncomment this
+            # if means.size(1) > 1:
+            #     means_ = means.sum(dim=1, keepdim=True)
+            #     log_stds_ = log_stds.sum(dim=1, keepdim=True)
+            # else:
+                # means_ = means
+                # log_stds_ = log_stds
+            means_ = means
+            log_stds_ = log_stds
             actions, log_prob_a = select_action(self.args, means_, status=status, exploration=exploration, info={'log_std': log_stds_})
             restore_mask = 1. - (actions_avail == 0).to(self.device).float()
             restore_actions = restore_mask * actions

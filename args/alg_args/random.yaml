@@ -1,0 +1,8 @@
+alg: "random"
+
+alg_args:
+  "replay": False
+  "random": True
+  "policy_lrate": 1.0e-4
+  "value_lrate": 1.0e-4
+  "continuous": True
