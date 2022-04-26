@@ -8,7 +8,7 @@ from .matd3 import MATD3
 from .ippo import IPPO
 from .mappo import MAPPO
 from .facmaddpg import FACMADDPG
-
+from .random import RandomAgent
 
 
 Model = dict(maddpg=MADDPG,
@@ -20,7 +20,8 @@ Model = dict(maddpg=MADDPG,
              matd3=MATD3,
              ippo=IPPO,
              mappo=MAPPO,
-             facmaddpg=FACMADDPG
+             facmaddpg=FACMADDPG,
+             random=RandomAgent
             )
 
 Strategy = dict(maddpg='pg',
@@ -32,5 +33,6 @@ Strategy = dict(maddpg='pg',
                 matd3='pg',
                 ippo='pg',
                 mappo='pg',
-                facmaddpg='pg'
+                facmaddpg='pg',
+                random="pg"
             )

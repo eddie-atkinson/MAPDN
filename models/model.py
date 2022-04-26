@@ -133,7 +133,6 @@ class Model(nn.Module):
                 log_stds = th.stack(log_stds, dim=1)
             else:
                 log_stds = th.zeros_like(means).to(self.device)
-
         return means, log_stds, hiddens
 
     def value(self, obs, act, last_act=None, last_hid=None):
@@ -222,7 +221,15 @@ class Model(nn.Module):
             # store trajectory
             if isinstance(done, list): done = np.sum(done)
             done_ = done or t==self.args.max_steps-1
-            trans = self.Transition(state,action_pol.detach().cpu().numpy(),log_prob_a,value.detach().cpu().numpy(),next_value.detach().cpu().numpy(),np.array(reward_repeat),next_state,done,done_,trainer.env.get_avail_actions(),last_hid.detach().cpu().numpy(),hid.detach().cpu().numpy())
+            trans = self.Transition(
+                state,
+                action_pol.detach().cpu().numpy(),
+                log_prob_a,value.detach().cpu().numpy(),
+                next_value.detach().cpu().numpy(),np.array(reward_repeat),
+                next_state,done,done_,trainer.env.get_avail_actions(),
+                last_hid.detach().cpu().numpy(),
+                hid.detach().cpu().numpy()
+            )
             if not self.args.episodic:
                 self.transition_update(trainer, trans, stat)
             else:

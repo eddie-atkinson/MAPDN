@@ -6,3 +6,4 @@ alg_args:
   "policy_lrate": 1.0e-4
   "value_lrate": 1.0e-4
   "continuous": True
+  "episodic": True
