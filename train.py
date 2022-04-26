@@ -84,8 +84,7 @@ elif argv.scenario == "case322_3min_final":
     env_config_dict["action_scale"] = 0.8
 elif argv.scenario == "J_50percent":
     env_config_dict["action_bias"] = 0.0
-    env_config_dict["action_scale"] = 200_000_000
-    env_config_dict["action_floor"] = 100_000_000
+    env_config_dict["action_scale"] = 1.0
 
 assert argv.mode in [
     "distributed",

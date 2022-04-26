@@ -40,7 +40,7 @@
 "hid_size": 64
 "continuous": True # if the control variable is continuous
 "normalize_advantages": False
-"train_episodes_num": 400
+"train_episodes_num": 1000
 "behaviour_update_freq": 60 # transition update: steps / episodic update: episodes
 "target_update_freq": 120 # transition update: steps / episodic update: episodes
 "policy_update_epochs": 1

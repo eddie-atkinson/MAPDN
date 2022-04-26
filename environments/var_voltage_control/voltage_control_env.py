@@ -14,7 +14,6 @@ PHASES = ["a", "b", "c"]
 def convert(dictionary):
     return namedtuple("GenericDict", dictionary.keys())(**dictionary)
 
-
 class ActionSpace(object):
     def __init__(self, low, high):
         self.low = low
@@ -71,8 +70,12 @@ class VoltageControl(MultiAgentEnv):
         self.pv_std = self.pv_data.values.std(axis=0) / 100.0
         self._set_reactive_power_boundary()
 
+        try:
+            action_floor = self.args.action_floor
+        except AttributeError:
+            action_floor = None
         # define action space and observation space
-        low = self.args.action_floor if self.args.action_floor else -self.args.action_scale + self.args.action_bias
+        low = action_floor if action_floor else -self.args.action_scale + self.args.action_bias
         self.action_space = ActionSpace(
             low=low,
             high=self.args.action_scale + self.args.action_bias,
@@ -83,7 +86,7 @@ class VoltageControl(MultiAgentEnv):
             args, "state_space", ["pv", "demand", "reactive", "vm_pu", "va_degree"]
         )
         if self.args.mode == "distributed":
-            self.n_actions = 1
+            self.n_actions = 2
             self.n_agents = len(self._get_base_sgen())
         elif self.args.mode == "decentralised":
             self.n_actions = len(self._get_base_sgen())
@@ -319,12 +322,17 @@ class VoltageControl(MultiAgentEnv):
             size = self.powergrid.asymmetric_sgen["q_a_mvar"].values.shape
         else:
             size = self.powergrid.sgen["q_mvar"].values.shape
-        rand_action = np.random.uniform(
+        apparent = np.random.uniform(
             low=self.action_space.low,
             high=self.action_space.high,
             size=size,
         )
-        return rand_action
+        reactive = np.random.uniform(
+            low=self.action_space.low,
+            high=self.action_space.high,
+            size=size,
+        )
+        return apparent, reactive
 
     def get_total_actions(self):
         """return the total number of actions an agent could ever take"""
@@ -949,12 +957,10 @@ class VoltageControl(MultiAgentEnv):
         return new_value
 
     def _set_sgen_q_mvar(self, actions):
-        actions = np.trunc(actions).astype(int) % 100_000_000
-        active_proportion = actions % 10000
-        reactive_proportion = np.trunc(actions / 10000).astype(int)
 
-        reactive_proportion = self._map_to_range(reactive_proportion, 9999, 0, 0.2, -0.2)
-        active_proportion = self._map_to_range(active_proportion, 9999, 0, 1.0, 0.0)
+        apparent, reactive = actions
+        apparent_proportion = self._map_to_range(apparent, 1.0, -1.0, 1.0, 0.0)
+        reactive_proportion = self._map_to_range(reactive, 1.0, -1.0, 0.2, -0.2)
 
         sgen = self.get_sgen()
         actions = actions[:len(sgen)]
@@ -966,15 +972,15 @@ class VoltageControl(MultiAgentEnv):
             b = self._get_sgen_on_phase("b")
             c = self._get_sgen_on_phase("c")
 
-            s_a = sgen.loc[a.index, "p_a_mw"] * active_proportion[a.index]
+            s_a = sgen.loc[a.index, "p_a_mw"] * apparent_proportion[a.index]
             q_a = s_a * reactive_proportion[a.index]
             p_a = np.sqrt(s_a ** 2 - q_a**2)
 
-            s_b = sgen.loc[b.index, "p_b_mw"] * active_proportion[b.index]
+            s_b = sgen.loc[b.index, "p_b_mw"] * apparent_proportion[b.index]
             q_b = s_b * reactive_proportion[b.index]
             p_b = np.sqrt(s_b** 2 - q_b**2)
 
-            s_c = sgen.loc[c.index, "p_a_mw"] * active_proportion[c.index]
+            s_c = sgen.loc[c.index, "p_a_mw"] * apparent_proportion[c.index]
             q_c = s_c * reactive_proportion[c.index]
             p_c = np.sqrt(s_c ** 2 - q_c**2)
 
@@ -987,11 +993,12 @@ class VoltageControl(MultiAgentEnv):
             sgen.loc[c.index, "q_c_mvar"] = q_c
 
         else:
-            s = sgen["p_mw"] * active_proportion
+            s = sgen["p_mw"] * apparent_proportion
             q = s * reactive_proportion
             p = np.sqrt(s ** 2 - q**2)
             sgen["q_mvar"] = q
             sgen["p_mw"] = p
+
 
 
     def _get_sgen_mw(self, index):
