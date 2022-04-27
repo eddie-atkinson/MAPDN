@@ -168,7 +168,5 @@ timeseries.run_timeseries(
     net,
     run=pp.runpp_3ph,
     #     Some intervals failed
-    steps=(1, 10),
     continue_on_divergence=True,
-    verbose=False,
 )
