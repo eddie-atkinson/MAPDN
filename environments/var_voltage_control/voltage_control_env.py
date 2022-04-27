@@ -704,8 +704,7 @@ class VoltageControl(MultiAgentEnv):
 
         # active power loss
         sgen_res = self.powergrid.res_asymmetric_sgen_3ph
-        q = self.powergrid.res_asymmetric_sgen["q_mvar"].sort_index().to_numpy(copy=True)
-
+    
         pv_active_max = self.pv_histories[self.steps, :]
 
         a = self._get_sgen_on_phase("a")
