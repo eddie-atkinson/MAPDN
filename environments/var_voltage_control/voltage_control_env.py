@@ -550,7 +550,7 @@ class VoltageControl(MultiAgentEnv):
 
         # solve power flow to get the latest voltage with new reactive power and old deamnd and PV active power
         try:
-            pp.runpp(self.powergrid)
+            self.get_run_pp_fn()(self.powergrid)
             return True
         except ppException:
             print("The power flow for the reactive power penetration cannot be solved.")
