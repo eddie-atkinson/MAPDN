@@ -20,6 +20,7 @@ parser.add_argument("--scenario", type=str, nargs="?", default="bus33_3min_final
 parser.add_argument("--voltage-barrier-type", type=str, nargs="?", default="l1", help="Please input the valid voltage barrier type: l1, courant_beltrami, l2, bowl or bump.")
 parser.add_argument("--test-mode", type=str, nargs="?", default="single", help="Please input the valid test mode: single or batch.")
 parser.add_argument("--test-day", type=int, nargs="?", default=730, help="Please input the day you would test if the test mode is single.")
+parser.add_argument("--interval", type=int, nargs="?", default=350400, help="Please input the interval you would test if the test mode is single.")
 parser.add_argument("--render", action="store_true", help="Activate the rendering of the environment.")
 argv = parser.parse_args()
 
@@ -108,7 +109,7 @@ else:
 if argv.test_mode == 'single':
     # record = test.run(199, 23, 2) # (day, hour, 3min)
     # record = test.run(730, 23, 2) # (day, hour, 3min)
-    record = test.run(argv.test_day, 23, 2)
+    record = test.run(argv.interval)
     with open('test_record_'+log_name+f'_day{argv.test_day}'+'.pickle', 'wb') as f:
         pickle.dump(record, f, pickle.HIGHEST_PROTOCOL)
 elif argv.test_mode == 'batch':

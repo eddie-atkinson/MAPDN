@@ -110,7 +110,7 @@ class Viewer(object):
         psp = pyglet.sprite.Sprite(img_net,
                                    0,
                                    0,
-                                   batch=batch,    
+                                   batch=batch,
                                 )
         psp.scale_y = 0.8
         psp.scale_x = 0.86
@@ -120,7 +120,7 @@ class Viewer(object):
     def _display_powerloss(self, env):
         powerloss = env._get_res_line_loss().sum()
         label = pyglet.text.Label(
-            f'The total power loss: \t{powerloss:.3f}',
+            f'The total power loss: \t{powerloss:.3f} step={env.steps}',
             font_name="Times New Roman",
             font_size=24,
             bold=True,

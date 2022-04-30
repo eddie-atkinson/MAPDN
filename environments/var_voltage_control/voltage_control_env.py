@@ -145,47 +145,45 @@ class VoltageControl(MultiAgentEnv):
                 solvable = False
         return self.get_obs(), self.get_state()
 
-    # def manual_reset(self, interval):
-    #     """manual reset the initial date"""
-    #     # reset the time step, cumulative rewards and obs history
-    #     self.steps = 1
-    #     self.sum_rewards = 0
-    #     if self.history > 1:
-    #         self.obs_history = {i: [] for i in range(self.n_agents)}
+    def manual_reset(self, interval):
+        """manual reset the initial date"""
+        # reset the time step, cumulative rewards and obs history
+        self.steps = 1
+        self.sum_rewards = 0
+        if self.history > 1:
+            self.obs_history = {i: [] for i in range(self.n_agents)}
 
-    #     # reset the power grid
-    #     self.powergrid = copy.deepcopy(self.base_powergrid)
+        # reset the power grid
+        self.powergrid = copy.deepcopy(self.base_powergrid)
 
-    #     # reset the time stamp
-    #     self._episode_start_interval = interval
-    #     solvable = False
-    #     while not solvable:
-    #         # get one episode of data
-    #         self.pv_histories = self._get_episode_pv_history()
-    #         self.active_demand_histories = self._get_episode_active_demand_history()
-    #         self.reactive_demand_histories = self._get_episode_reactive_demand_history()
-    #         self._set_demand_and_pv(add_noise=False)
-    #         # random initialise action
-    #         if self.args.reset_action:
-    #             self.powergrid.sgen["q_mvar"] = self.get_action()
-    #             self.powergrid.sgen["q_mvar"] = self._clip_reactive_power(
-    #                 self.powergrid.sgen["q_mvar"], self.powergrid.sgen["p_mw"]
-    #             )
-    #         try:
-    #             pp.runpp(self.powergrid)
-    #             solvable = True
-    #         except ppException:
-    #             print(
-    #                 "The power flow for the initialisation of demand and PV cannot be solved."
-    #             )
-    #             print(f"This is the pv: \n{self.powergrid.sgen['p_mw']}")
-    #             print(f"This is the q: \n{self.powergrid.sgen['q_mvar']}")
-    #             print(f"This is the active demand: \n{self.powergrid.load['p_mw']}")
-    #             print(f"This is the reactive demand: \n{self.powergrid.load['q_mvar']}")
-    #             print(f"This is the res_bus: \n{self.powergrid.res_bus}")
-    #             solvable = False
+        # reset the time stamp
+        self._episode_start_interval = interval
+        solvable = False
+        while not solvable:
+            # get one episode of data
+            self.pv_histories = self._get_episode_pv_history()
+            self.active_demand_histories = self._get_episode_active_demand_history()
+            self.reactive_demand_histories = self._get_episode_reactive_demand_history()
+            self._set_demand_and_pv(add_noise=False)
+            # random initialise action
+            if self.args.reset_action:
+                actions = self.get_action()
+                self._set_sgen_q_mvar(actions)
+            try:
+                pp.runpp(self.powergrid)
+                solvable = True
+            except ppException:
+                print(
+                    "The power flow for the initialisation of demand and PV cannot be solved."
+                )
+                print(f"This is the pv: \n{self.powergrid.sgen['p_mw']}")
+                print(f"This is the q: \n{self.powergrid.sgen['q_mvar']}")
+                print(f"This is the active demand: \n{self.powergrid.load['p_mw']}")
+                print(f"This is the reactive demand: \n{self.powergrid.load['q_mvar']}")
+                print(f"This is the res_bus: \n{self.powergrid.res_bus}")
+                solvable = False
 
-    #     return self.get_obs(), self.get_state()
+        return self.get_obs(), self.get_state()
 
     def step(self, actions, add_noise=False):
         """function for the interaction between agent and the env each time step"""
@@ -704,7 +702,7 @@ class VoltageControl(MultiAgentEnv):
 
         # active power loss
         sgen_res = self.powergrid.res_asymmetric_sgen_3ph
-    
+
         pv_active_max = self.pv_histories[self.steps, :]
 
         a = self._get_sgen_on_phase("a")
