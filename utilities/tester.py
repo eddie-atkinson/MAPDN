@@ -83,13 +83,14 @@ class PGTester(object):
         # init hidden states
         last_hid = self.behaviour_net.policy_dicts[0].init_hidden()
         for interval in range(len(self.env.pv_data)):
+            print(interval)
             state_ = prep_obs(state).contiguous().view(1, self.n_, self.obs_dim).to(self.device)
             action, _, _, _, hid = self.behaviour_net.get_actions(state_, status='test', exploration=False, actions_avail=th.tensor(self.env.get_avail_actions()), target=False, last_hid=last_hid)
             _, actual = translate_action(self.args, action, self.env)
             reward, done, info = self.env.step(actual, add_noise=False)
             res_sgen = self.env.powergrid.res_asymmetric_sgen_3ph
             res_bus = self.env.powergrid.res_bus_3ph
-            pv_smax = self.env.pv_histories[self.env.steps, :]
+            pv_smax = self.env.pv_data.iloc[interval]
             record["pv"]["pv_smax"].append(pv_smax)
             record["pv"]["pv_a_active"].append(res_sgen["p_a_mw"].to_numpy())
             record["pv"]["pv_b_active"].append(res_sgen["p_b_mw"].to_numpy())
@@ -102,8 +103,12 @@ class PGTester(object):
             record["bus"]["vm_c_pu"].append(res_bus["vm_c_pu"].to_numpy())
 
             next_state = self.env.get_obs()
-            # set the next state
-            state = next_state
+            if interval % self.env.args.episode_limit == 0:
+                print("Resetting env")
+                state, global_state = self.env.manual_reset(interval)
+            else:
+                # set the next state
+                state = next_state
             # set the next last_hid
             last_hid = hid
         return record
