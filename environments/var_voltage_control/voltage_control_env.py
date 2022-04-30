@@ -170,7 +170,7 @@ class VoltageControl(MultiAgentEnv):
                 actions = self.get_action()
                 self._set_sgen_q_mvar(actions)
             try:
-                pp.runpp(self.powergrid)
+                self.get_run_pp_fn()(self.powergrid)
                 solvable = True
             except ppException:
                 print(
