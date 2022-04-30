@@ -17,16 +17,16 @@ class PGTester(object):
         self.render = render
 
     def run(self, day, hour, quarter):
-        # reset env    
+        # reset env
         state, global_state = self.env.manual_reset(day, hour, quarter)
 
         # init hidden states
         last_hid = self.behaviour_net.policy_dicts[0].init_hidden()
 
-        record = {"pv_active": [], 
-                  "pv_reactive": [], 
-                  "bus_active": [], 
-                  "bus_reactive": [], 
+        record = {"pv_active": [],
+                  "pv_reactive": [],
+                  "bus_active": [],
+                  "bus_reactive": [],
                   "bus_voltage": [],
                   "line_loss": []
             }
@@ -64,6 +64,19 @@ class PGTester(object):
 
     def batch_run(self, num_epsiodes=100):
         test_results = {}
+        record = {
+            "pv_a_active": [],
+            "pv_b_active": [],
+            "pv_c_active": [],
+            "pv_a_reactive": [],
+            "pv_b_reactive": [],
+            "pv_c_reactive": [],
+            "vm_a_pu": [],
+            "vm_b_pu": [],
+            "vm_c_pu": [],
+        }
+        self.env.manual_reset(0)
+        breakpoint()
         for epi in range(num_epsiodes):
             # reset env
             state, global_state = self.env.reset()
@@ -97,11 +110,10 @@ class PGTester(object):
             test_results[k] = (np.mean(v), 2 * np.std(v))
         self.print_info(test_results)
         return test_results
-    
+
     def print_info(self, stat):
         string = [f'Test Results:']
         for k, v in stat.items():
             string.append(k+f': mean: {v[0]:2.4f}, \t2std: {v[1]:2.4f}')
         string = "\n".join(string)
         print (string)
-            

@@ -32,7 +32,7 @@ env_config_dict["data_path"] = "/".join(data_path)
 net_topology = argv.scenario
 
 # set the action range
-assert net_topology in ['case33_3min_final', 'case141_3min_final', 'case322_3min_final'], f'{net_topology} is not a valid scenario.'
+assert net_topology in ['case33_3min_final', 'case141_3min_final', 'case322_3min_final', "J_50percent"], f'{net_topology} is not a valid scenario.'
 if argv.scenario == 'case33_3min_final':
     env_config_dict["action_bias"] = 0.0
     env_config_dict["action_scale"] = 0.8
@@ -42,6 +42,9 @@ elif argv.scenario == 'case141_3min_final':
 elif argv.scenario == 'case322_3min_final':
     env_config_dict["action_bias"] = 0.0
     env_config_dict["action_scale"] = 0.8
+elif argv.scenario == "J_50percent":
+    env_config_dict["action_bias"] = 0.0
+    env_config_dict["action_scale"] = 1.0
 
 assert argv.mode in ['distributed', 'decentralised'], "Please input the correct mode, e.g. distributed or decentralised."
 env_config_dict["mode"] = argv.mode
