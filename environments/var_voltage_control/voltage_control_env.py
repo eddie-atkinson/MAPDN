@@ -11,8 +11,11 @@ from .voltage_barrier.voltage_barrier_backend import VoltageBarrier
 
 SECONDS_IN_ONE_HOUR = 3600
 PHASES = ["a", "b", "c"]
+
+
 def convert(dictionary):
     return namedtuple("GenericDict", dictionary.keys())(**dictionary)
+
 
 class ActionSpace(object):
     def __init__(self, low, high):
@@ -75,7 +78,11 @@ class VoltageControl(MultiAgentEnv):
         except AttributeError:
             action_floor = None
         # define action space and observation space
-        low = action_floor if action_floor else -self.args.action_scale + self.args.action_bias
+        low = (
+            action_floor
+            if action_floor
+            else -self.args.action_scale + self.args.action_bias
+        )
         self.action_space = ActionSpace(
             low=low,
             high=self.args.action_scale + self.args.action_bias,
@@ -104,7 +111,6 @@ class VoltageControl(MultiAgentEnv):
         # initialise voltage barrier function
         self.voltage_barrier = VoltageBarrier(self.voltage_barrier_type)
         self._rendering_initialized = False
-
 
     def reset(self, reset_time=True):
         """reset the env"""
@@ -236,9 +242,13 @@ class VoltageControl(MultiAgentEnv):
         clusters = self._get_clusters_info()
         if self.args.mode == "distributed":
             if self._is_3ph():
-                obs_zone_dict, zone_list, obs_len_list = self._get_obs_distributed_3ph(clusters)
+                obs_zone_dict, zone_list, obs_len_list = self._get_obs_distributed_3ph(
+                    clusters
+                )
             else:
-                obs_zone_dict, zone_list, obs_len_list = self._get_obs_distributed(clusters)
+                obs_zone_dict, zone_list, obs_len_list = self._get_obs_distributed(
+                    clusters
+                )
 
             agents_obs = list()
             obs_max_len = max(obs_len_list)
@@ -317,7 +327,10 @@ class VoltageControl(MultiAgentEnv):
         """return the action according to a uniform distribution over [action_lower, action_upper)"""
         n_actions = self.get_total_actions()
         if self._is_3ph():
-            size = (self.powergrid.asymmetric_sgen["q_a_mvar"].values.shape[0], n_actions)
+            size = (
+                self.powergrid.asymmetric_sgen["q_a_mvar"].values.shape[0],
+                n_actions,
+            )
         else:
             size = (self.powergrid.sgen["q_mvar"].values.shape[0], n_actions)
 
@@ -373,7 +386,9 @@ class VoltageControl(MultiAgentEnv):
     def _select_start_interval(self):
         """select start interval for an episode"""
         pv_data = self.pv_data
-        available_range = len(pv_data.index) - self.episode_limit - 1 # subtract 1 for safety margin
+        available_range = (
+            len(pv_data.index) - self.episode_limit - 1
+        )  # subtract 1 for safety margin
         return np.random.choice(available_range)
 
     def _load_network(self):
@@ -491,7 +506,6 @@ class VoltageControl(MultiAgentEnv):
         self._set_load_p_mw(active_demand)
         self._set_load_q_mvar(reactive_demand)
 
-
     def _set_reactive_power_boundary(self):
         """set the boundary of reactive power"""
         # Don't oversize the inverters
@@ -559,9 +573,12 @@ class VoltageControl(MultiAgentEnv):
             print(f"This is the reactive demand: \n{self.powergrid.load['q_mvar']}")
             print(f"This is the res_bus: \n{self.powergrid.res_bus}")
             return False
+
     def _clip_reactive_power(self, reactive_actions, active_power):
         """clip the reactive power tto the hard safety range"""
-        reactive_power_constraint = np.sqrt(self.s_max[active_power.index]**2 - active_power**2)
+        reactive_power_constraint = np.sqrt(
+            self.s_max[active_power.index] ** 2 - active_power**2
+        )
         return reactive_power_constraint * reactive_actions
 
     def _calc_reward(self, info={}):
@@ -578,7 +595,6 @@ class VoltageControl(MultiAgentEnv):
         else:
             return self._calc_reward_1ph(info)
 
-
     def _calc_reward_3ph(self, info):
         v_a = self.powergrid.res_bus_3ph["vm_a_pu"].sort_index().to_numpy(copy=True)
         v_b = self.powergrid.res_bus_3ph["vm_b_pu"].sort_index().to_numpy(copy=True)
@@ -587,23 +603,24 @@ class VoltageControl(MultiAgentEnv):
         v_a_below_lower = v_a < self.v_lower
         v_a_above_upper = v_a > self.v_upper
 
-        v_a_out_of_control = (np.sum(v_a_below_lower) + np.sum(v_a_above_upper))
+        v_a_out_of_control = np.sum(v_a_below_lower) + np.sum(v_a_above_upper)
 
         v_b_below_lower = v_b < self.v_lower
         v_b_above_upper = v_b > self.v_upper
 
-        v_b_out_of_control = (np.sum(v_b_below_lower) + np.sum(v_b_above_upper))
+        v_b_out_of_control = np.sum(v_b_below_lower) + np.sum(v_b_above_upper)
 
         v_c_below_lower = v_c < self.v_lower
         v_c_above_upper = v_c > self.v_upper
-        v_c_out_of_control = (np.sum(v_c_below_lower) + np.sum(v_c_above_upper))
-
+        v_c_out_of_control = np.sum(v_c_below_lower) + np.sum(v_c_above_upper)
 
         percent_a_out_of_control = v_a_out_of_control / v_a.shape[0]
         percent_b_out_of_control = v_b_out_of_control / v_b.shape[0]
         percent_c_out_of_control = v_c_out_of_control / v_c.shape[0]
 
-        percent_out_of_control = (v_a_out_of_control + v_b_out_of_control + v_c_out_of_control) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+        percent_out_of_control = (
+            v_a_out_of_control + v_b_out_of_control + v_c_out_of_control
+        ) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
 
         percent_a_above_upper = np.sum(v_a_above_upper) / v_a.shape[0]
         percent_b_above_upper = np.sum(v_b_above_upper) / v_b.shape[0]
@@ -613,16 +630,17 @@ class VoltageControl(MultiAgentEnv):
         percent_b_below_lower = np.sum(v_b_below_lower) / v_b.shape[0]
         percent_c_below_lower = np.sum(v_c_below_lower) / v_c.shape[0]
 
-
-        percent_above_upper = (np.sum(v_a_above_upper) + np.sum(v_b_above_upper) + np.sum(v_c_above_upper)) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
-        percent_below_lower = (np.sum(v_a_below_lower) +  np.sum(v_b_below_lower) +  np.sum(v_c_below_lower)) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
-
+        percent_above_upper = (
+            np.sum(v_a_above_upper) + np.sum(v_b_above_upper) + np.sum(v_c_above_upper)
+        ) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+        percent_below_lower = (
+            np.sum(v_a_below_lower) + np.sum(v_b_below_lower) + np.sum(v_c_below_lower)
+        ) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
 
         info["percentage_of_v_out_of_control"] = percent_out_of_control
         info["percentage_of_v_a_out_of_control"] = percent_a_out_of_control
         info["percentage_of_v_b_out_of_control"] = percent_b_out_of_control
         info["percentage_of_v_c_out_of_control"] = percent_c_out_of_control
-
 
         info["percentage_of_lower_than_lower_v"] = percent_below_lower
         info["percentage_of_higher_than_upper_v"] = percent_above_upper
@@ -634,13 +652,10 @@ class VoltageControl(MultiAgentEnv):
         info["percentage_of_a_lower_than_lower_v"] = percent_a_below_lower
         info["percentage_of_b_lower_than_lower_v"] = percent_b_below_lower
         info["percentage_of_c_lower_than_lower_v"] = percent_c_below_lower
-        
-    
-        
+
         info["totally_controllable_ratio"] = (
             0.0 if percent_out_of_control > 1e-3 else 1.0
         )
-
 
         # voltage violation
         v_ref = 0.5 * (self.v_lower + self.v_upper)
@@ -652,26 +667,31 @@ class VoltageControl(MultiAgentEnv):
         average_v_deviation_b = np.mean(np.abs(v_b - v_ref))
         average_v_deviation_c = np.mean(np.abs(v_c - v_ref))
 
-        average_v_deviation = np.sum(np.abs(v_a - v_ref)) +  np.sum(np.abs(v_b - v_ref)) + np.sum(np.abs(v_c - v_ref)) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
-
+        average_v_deviation = (
+            np.sum(np.abs(v_a - v_ref))
+            + np.sum(np.abs(v_b - v_ref))
+            + np.sum(np.abs(v_c - v_ref)) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+        )
 
         average_v_a = np.mean(v_a)
         average_v_b = np.mean(v_b)
         average_v_c = np.mean(v_c)
 
-        average_v = np.sum(v_a) +  np.sum(v_b) + np.sum(v_c) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+        average_v = (
+            np.sum(v_a)
+            + np.sum(v_b)
+            + np.sum(v_c) / (v_a.shape[0] + v_b.shape[0] + v_c.shape[0])
+        )
 
         info["average_voltage_deviation"] = average_v_deviation
         info["average_a_voltage_deviation"] = average_v_deviation_a
         info["average_b_voltage_deviation"] = average_v_deviation_b
         info["average_c_voltage_deviation"] = average_v_deviation_c
 
-
         info["average_voltage"] = average_v
         info["average_voltage_a"] = average_v_a
         info["average_voltage_b"] = average_v_b
         info["average_voltage_c"] = average_v_c
-
 
         # active power loss
         sgen_res = self.powergrid.res_asymmetric_sgen_3ph
@@ -686,13 +706,15 @@ class VoltageControl(MultiAgentEnv):
         p_loss_b = pv_active_max[b.index] - sgen_res.loc[b.index, "p_b_mw"]
         p_loss_c = pv_active_max[c.index] - sgen_res.loc[c.index, "p_c_mw"]
 
-        p_loss = (np.sum(p_loss_a) + np.sum(p_loss_b) + np.sum(p_loss_c)) / (p_loss_a.shape[0] + p_loss_b.shape[0] + p_loss_c.shape[0])
+        p_loss = (np.sum(p_loss_a) + np.sum(p_loss_b) + np.sum(p_loss_c)) / (
+            p_loss_a.shape[0] + p_loss_b.shape[0] + p_loss_c.shape[0]
+        )
 
         info["p_loss"] = p_loss
         # reward function
         ## voltage barrier function
         v_loss_a = np.mean(self.voltage_barrier.step(v_a)) * self.voltage_weight
-        v_loss_b= np.mean(self.voltage_barrier.step(v_b)) * self.voltage_weight
+        v_loss_b = np.mean(self.voltage_barrier.step(v_b)) * self.voltage_weight
         v_loss_c = np.mean(self.voltage_barrier.step(v_c)) * self.voltage_weight
         ## add soft constraint for line or q
         if self.line_weight != None:
@@ -711,7 +733,6 @@ class VoltageControl(MultiAgentEnv):
         info["destroy"] = 0.0
 
         return reward, info
-
 
     def _calc_reward_1ph(self, info):
         # percentage of voltage out of control
@@ -856,21 +877,21 @@ class VoltageControl(MultiAgentEnv):
 
     def _get_sgen_on_phase(self, phase):
         """
-            phase: one of ["a", "b", "c"]
+        phase: one of ["a", "b", "c"]
         """
         sgen = self.get_sgen()
         return sgen[sgen["name"] == phase]
 
     def _get_load_on_phase(self, phase):
         """
-            phase: one of ["a", "b", "c"]
+        phase: one of ["a", "b", "c"]
         """
         load = self.get_load()
         return load[load["name"] == phase]
 
     def _set_load_q_mvar(self, q):
         load = self.get_load()
-        q = q[:len(load)]
+        q = q[: len(load)]
         if self._is_3ph():
             # PV contains more profiles than we may need
 
@@ -886,7 +907,7 @@ class VoltageControl(MultiAgentEnv):
 
     def _set_load_p_mw(self, p):
         load = self.get_load()
-        p = p[:len(load)]
+        p = p[: len(load)]
         if self._is_3ph():
             # PV contains more profiles than we may need
 
@@ -902,7 +923,7 @@ class VoltageControl(MultiAgentEnv):
 
     def _set_sgen_p_mw(self, pv):
         sgen = self.get_sgen()
-        pv = pv[:len(sgen)]
+        pv = pv[: len(sgen)]
         if self._is_3ph():
             # PV contains more profiles than we may need
 
@@ -917,41 +938,47 @@ class VoltageControl(MultiAgentEnv):
             sgen["p_mw"] = pv
 
     def _map_to_range(self, old_value, old_max, old_min, new_max, new_min):
-        old_range = (old_max -  old_min)
-        new_range = (new_max - new_min)
+        old_range = old_max - old_min
+        new_range = new_max - new_min
         new_value = (((old_value - old_min) * new_range) / old_range) + new_min
         return new_value
 
         return new_value
 
+    def _apply_actions(self, phase, apparent, reactive):
+        sgen = self.get_sgen()
+        phase_sgens = self._get_sgen_on_phase(phase)
+        s = sgen.loc[phase_sgens.index, f"p_{phase}_mw"] * apparent[phase_sgens.index]
+        min_p = 0.8 * s
+        max_q = np.sqrt(s**2 - min_p**2)
+        q = reactive[phase_sgens.index] * max_q
+        p = np.sqrt(s**2 - q**2)
+
+        return p, q
+
     def _set_sgen_q_mvar(self, actions):
         apparent = actions[:, 0]
         reactive = actions[:, 1]
         apparent_proportion = self._map_to_range(apparent, 1.0, -1.0, 1.0, 0.0)
-        reactive_proportion = self._map_to_range(reactive, 1.0, -1.0, 0.2, -0.2)
+        reactive_proportion = self._map_to_range(reactive, 1.0, -1.0, 1.0, -1.0)
 
         sgen = self.get_sgen()
-        actions = actions[:len(sgen)]
+        actions = actions[: len(sgen)]
 
         if self._is_3ph():
-
-            # PV contains more profiles than we may need
             a = self._get_sgen_on_phase("a")
             b = self._get_sgen_on_phase("b")
             c = self._get_sgen_on_phase("c")
 
-            s_a = sgen.loc[a.index, "p_a_mw"] * apparent_proportion[a.index]
-            q_a = s_a * reactive_proportion[a.index]
-            p_a = np.sqrt(s_a ** 2 - q_a**2)
-
-            s_b = sgen.loc[b.index, "p_b_mw"] * apparent_proportion[b.index]
-            q_b = s_b * reactive_proportion[b.index]
-            p_b = np.sqrt(s_b** 2 - q_b**2)
-
-            s_c = sgen.loc[c.index, "p_a_mw"] * apparent_proportion[c.index]
-            q_c = s_c * reactive_proportion[c.index]
-            p_c = np.sqrt(s_c ** 2 - q_c**2)
-
+            p_a, q_a = self._apply_actions(
+                "a", apparent_proportion, reactive_proportion
+            )
+            p_b, q_b = self._apply_actions(
+                "b", apparent_proportion, reactive_proportion
+            )
+            p_c, q_c = self._apply_actions(
+                "c", apparent_proportion, reactive_proportion
+            )
 
             sgen.loc[a.index, "p_a_mw"] = p_a
             sgen.loc[a.index, "q_a_mvar"] = q_a
@@ -961,13 +988,12 @@ class VoltageControl(MultiAgentEnv):
             sgen.loc[c.index, "q_c_mvar"] = q_c
 
         else:
+            # TODO: this doesn't work
             s = sgen["p_mw"] * apparent_proportion
             q = s * reactive_proportion
-            p = np.sqrt(s ** 2 - q**2)
+            p = np.sqrt(s**2 - q**2)
             sgen["q_mvar"] = q
             sgen["p_mw"] = p
-
-
 
     def _get_sgen_mw(self, index):
         sgen = self.get_sgen().iloc[index]
@@ -1035,7 +1061,6 @@ class VoltageControl(MultiAgentEnv):
         state = np.array(state)
         return state
 
-
     def _get_state(self):
         state = []
         if "demand" in self.state_space:
@@ -1075,7 +1100,9 @@ class VoltageControl(MultiAgentEnv):
                     copy_zone_buses = copy.deepcopy(zone_buses)
                     copy_zone_buses.loc[sgen_bus][f"p_{zone}_mw"] += pv
                     copy_zone_buses.loc[sgen_bus][f"q_{zone}_mvar"] += q
-                    obs += list(copy_zone_buses.loc[:, f"p_{zone}_mw"].to_numpy(copy=True))
+                    obs += list(
+                        copy_zone_buses.loc[:, f"p_{zone}_mw"].to_numpy(copy=True)
+                    )
                     obs += list(
                         copy_zone_buses.loc[:, f"q_{zone}_mvar"].to_numpy(copy=True)
                     )
@@ -1110,9 +1137,7 @@ class VoltageControl(MultiAgentEnv):
                     copy_zone_buses.loc[sgen_bus]["p_mw"] += pv
                     copy_zone_buses.loc[sgen_bus]["q_mvar"] += q
                     obs += list(copy_zone_buses.loc[:, "p_mw"].to_numpy(copy=True))
-                    obs += list(
-                        copy_zone_buses.loc[:, "q_mvar"].to_numpy(copy=True)
-                    )
+                    obs += list(copy_zone_buses.loc[:, "q_mvar"].to_numpy(copy=True))
                 if "pv" in self.state_space:
                     obs.append(pv)
                 if "reactive" in self.state_space:
@@ -1122,9 +1147,7 @@ class VoltageControl(MultiAgentEnv):
                 if "va_degree" in self.state_space:
                     # transform the voltage phase to radian
                     obs += list(
-                        zone_buses.loc[:, "va_degree"].to_numpy(copy=True)
-                        * np.pi
-                        / 180
+                        zone_buses.loc[:, "va_degree"].to_numpy(copy=True) * np.pi / 180
                     )
                 obs_zone_dict[zone] = np.array(obs)
             obs_len_list.append(obs_zone_dict[zone].shape[0])
