@@ -1096,8 +1096,8 @@ class VoltageControl(MultiAgentEnv):
             zone_buses, zone, pv, q, sgen_bus = clusters[f"sgen{i}"]
             zone_list.append(zone)
             if not (zone in obs_zone_dict.keys()):
+                copy_zone_buses = copy.deepcopy(zone_buses)
                 if "demand" in self.state_space:
-                    copy_zone_buses = copy.deepcopy(zone_buses)
                     copy_zone_buses.loc[sgen_bus][f"p_{zone}_mw"] += pv
                     copy_zone_buses.loc[sgen_bus][f"q_{zone}_mvar"] += q
                     obs += list(
@@ -1107,9 +1107,9 @@ class VoltageControl(MultiAgentEnv):
                         copy_zone_buses.loc[:, f"q_{zone}_mvar"].to_numpy(copy=True)
                     )
                 if "pv" in self.state_space:
-                    obs.append(pv)
+                    obs += list(copy_zone_buses.loc[:, f"p_{zone}_mw"].to_numpy(copy=True))
                 if "reactive" in self.state_space:
-                    obs.append(q)
+                    obs += list(copy_zone_buses.loc[:, f"q_{zone}_mvar"].to_numpy(copy=True))
                 if "vm_pu" in self.state_space:
                     obs += list(zone_buses.loc[:, f"vm_{zone}_pu"].to_numpy(copy=True))
                 if "va_degree" in self.state_space:
