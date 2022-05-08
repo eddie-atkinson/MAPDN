@@ -4,7 +4,6 @@ import numpy as np
 from pathlib import Path
 from multiprocessing import Pool
 
-
 import pandapower.control as control
 import pandapower.timeseries as timeseries
 from pandapower.timeseries.data_sources.frame_data import DFData
@@ -14,40 +13,33 @@ NETWORK_NAME = "J"
 INPUT_PATH = Path(f"./output_network_models/{NETWORK_NAME}")
 OUTPUT_PATH = Path("./")
 SIMULATION_RESULTS_PATH = Path(f"./simulation_results/{NETWORK_NAME}")
-LOAD_DATA_PATH = Path("./output_data")
-SOLAR = True
+LOAD_DATA_PATH = Path("./opf_data")
 LOAD_SCALE = 0.7
 
 reactive_df = pd.read_csv(
     LOAD_DATA_PATH / "train_reactive.csv", parse_dates=["datetime"]
 )
 active_df = pd.read_csv(LOAD_DATA_PATH / "train_active.csv", parse_dates=["datetime"])
-solar_df = pd.read_csv(LOAD_DATA_PATH / "train_pv.csv", parse_dates=["datetime"])
-
+solar_df = pd.read_csv(LOAD_DATA_PATH / "pv_p_mw.csv")
+solar_reactive_df = pd.read_csv(LOAD_DATA_PATH / "pv_q_mvar.csv")
 reactive_df = reactive_df.drop(columns=["datetime"]) * LOAD_SCALE
 active_df = active_df.drop(columns=["datetime"]) * LOAD_SCALE
-if SOLAR:
-    solar_df = solar_df.drop(columns=["datetime"])
 
 net = pp.from_pickle(INPUT_PATH / "model.p")
 
 ds_active = DFData(active_df)
 ds_reactive = DFData(reactive_df)
-if SOLAR:
-    ds_solar = DFData(solar_df)
-
+ds_solar = DFData(solar_df)
+ds_solar_reactive = DFData(solar_reactive_df)
 
 load_mw_a_index = net.asymmetric_load[net.asymmetric_load["name"] == "a"].index
 load_mw_b_index = net.asymmetric_load[net.asymmetric_load["name"] == "b"].index
 load_mw_c_index = net.asymmetric_load[net.asymmetric_load["name"] == "c"].index
 
 
-if SOLAR:
-    sgen_mw_a_index = net.asymmetric_sgen[net.asymmetric_sgen["name"] == "a"].index
-    sgen_mw_b_index = net.asymmetric_sgen[net.asymmetric_sgen["name"] == "b"].index
-    sgen_mw_c_index = net.asymmetric_sgen[net.asymmetric_sgen["name"] == "c"].index
-else:
-    net.asymmetric_sgen["in_service"] = False
+sgen_mw_a_index = net.asymmetric_sgen[net.asymmetric_sgen["name"] == "a"].index
+sgen_mw_b_index = net.asymmetric_sgen[net.asymmetric_sgen["name"] == "b"].index
+sgen_mw_c_index = net.asymmetric_sgen[net.asymmetric_sgen["name"] == "c"].index
 
 
 p_asymmetric_load_a = control.ConstControl(
@@ -101,33 +93,58 @@ q_asymmetric_load_c = control.ConstControl(
     profile_name=[str(i) for i in load_mw_c_index],
 )
 
-if SOLAR:
 
-    const_sgen_a = control.ConstControl(
-        net,
-        element="asymmetric_sgen",
-        element_index=sgen_mw_a_index,
-        variable="p_a_mw",
-        data_source=ds_solar,
-        profile_name=[str(i) for i in sgen_mw_a_index],
-    )
+const_sgen_a = control.ConstControl(
+    net,
+    element="asymmetric_sgen",
+    element_index=sgen_mw_a_index,
+    variable="p_a_mw",
+    data_source=ds_solar,
+    profile_name=[str(i) for i in sgen_mw_a_index],
+)
 
-    const_sgen_b = control.ConstControl(
-        net,
-        element="asymmetric_sgen",
-        element_index=sgen_mw_b_index,
-        variable="p_b_mw",
-        data_source=ds_solar,
-        profile_name=[str(i) for i in sgen_mw_b_index],
-    )
-    const_sgen_c = control.ConstControl(
-        net,
-        element="asymmetric_sgen",
-        element_index=sgen_mw_c_index,
-        variable="p_c_mw",
-        data_source=ds_solar,
-        profile_name=[str(i) for i in sgen_mw_c_index],
-    )
+const_sgen_b = control.ConstControl(
+    net,
+    element="asymmetric_sgen",
+    element_index=sgen_mw_b_index,
+    variable="p_b_mw",
+    data_source=ds_solar,
+    profile_name=[str(i) for i in sgen_mw_b_index],
+)
+const_sgen_c = control.ConstControl(
+    net,
+    element="asymmetric_sgen",
+    element_index=sgen_mw_c_index,
+    variable="p_c_mw",
+    data_source=ds_solar,
+    profile_name=[str(i) for i in sgen_mw_c_index],
+)
+
+const_sgen_a = control.ConstControl(
+    net,
+    element="asymmetric_sgen",
+    element_index=sgen_mw_a_index,
+    variable="q_a_mvar",
+    data_source=ds_solar_reactive,
+    profile_name=[str(i) for i in sgen_mw_a_index],
+)
+
+const_sgen_b = control.ConstControl(
+    net,
+    element="asymmetric_sgen",
+    element_index=sgen_mw_b_index,
+    variable="q_b_mvar",
+    data_source=ds_solar_reactive,
+    profile_name=[str(i) for i in sgen_mw_b_index],
+)
+const_sgen_c = control.ConstControl(
+    net,
+    element="asymmetric_sgen",
+    element_index=sgen_mw_c_index,
+    variable="q_c_mvar",
+    data_source=ds_solar_reactive,
+    profile_name=[str(i) for i in sgen_mw_c_index],
+)
 
 
 N_ITER = len(solar_df)
@@ -148,27 +165,23 @@ def run_timeseries(time_range):
     ow.log_variable("res_bus_3ph", "vm_b_pu")
     ow.log_variable("res_bus_3ph", "vm_c_pu")
 
-    ow.log_variable("res_bus_3ph", "p_a_mw")
-    ow.log_variable("res_bus_3ph", "p_b_mw")
-    ow.log_variable("res_bus_3ph", "p_c_mw")
-
 
     ow.log_variable("res_asymmetric_load_3ph", "p_a_mw")
     ow.log_variable("res_asymmetric_load_3ph", "p_b_mw")
     ow.log_variable("res_asymmetric_load_3ph", "p_c_mw")
 
-    if SOLAR:
-        ow.log_variable("res_asymmetric_sgen_3ph", "p_a_mw")
-        ow.log_variable("res_asymmetric_sgen_3ph", "p_b_mw")
-        ow.log_variable("res_asymmetric_sgen_3ph", "p_c_mw")
 
-        ow.log_variable("res_asymmetric_sgen_3ph", "q_a_mvar")
-        ow.log_variable("res_asymmetric_sgen_3ph", "q_b_mvar")
-        ow.log_variable("res_asymmetric_sgen_3ph", "q_c_mvar")
+    ow.log_variable("res_asymmetric_sgen_3ph", "p_a_mw")
+    ow.log_variable("res_asymmetric_sgen_3ph", "p_b_mw")
+    ow.log_variable("res_asymmetric_sgen_3ph", "p_c_mw")
 
-        ow.log_variable("res_asymmetric_load_3ph", "q_a_mvar")
-        ow.log_variable("res_asymmetric_load_3ph", "q_b_mvar")
-        ow.log_variable("res_asymmetric_load_3ph", "q_c_mvar")
+    ow.log_variable("res_asymmetric_sgen_3ph", "q_a_mvar")
+    ow.log_variable("res_asymmetric_sgen_3ph", "q_b_mvar")
+    ow.log_variable("res_asymmetric_sgen_3ph", "q_c_mvar")
+
+    ow.log_variable("res_asymmetric_load_3ph", "q_a_mvar")
+    ow.log_variable("res_asymmetric_load_3ph", "q_b_mvar")
+    ow.log_variable("res_asymmetric_load_3ph", "q_c_mvar")
 
     ow.log_variable("res_ext_grid_3ph", "p_a_mw")
     ow.log_variable("res_ext_grid_3ph", "p_b_mw")

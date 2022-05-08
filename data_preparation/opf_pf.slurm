@@ -1,11 +1,11 @@
 #!/bin/bash -l
-#SBATCH --job-name=process-input-data
+#SBATCH --job-name=opf_pf
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --export=ALL
 #SBATCH --partition=day
-#SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=100GB
+#SBATCH --cpus-per-task=36
+#SBATCH --mem-per-cpu=10GB
 
 start_time=$( date )
 
@@ -25,7 +25,7 @@ conda activate mapdn
 
 # Below is the Python file that would be run. Replace
 # lab05-sample.py by your own file name.
-SCRIPT=test.py
+SCRIPT=opf_pf.py
 
 
 SCRATCH=$MYSCRATCH/run_conda/$SLURM_JOBID
@@ -54,25 +54,25 @@ cd ${SLURM_SUBMIT_DIR}
 echo "SLURM_SUBMIT_DIR is"
 echo ${SLURM_SUBMIT_DIR}
 
+# copy the mothur analysis script to SCRATCH
+cp ${SCRIPT_PATH} ${SCRATCH}
 
 # go to the /scratch... directory and create symbolic links to the
 # files for the input data
 cd ${SCRATCH}
-ln -s $MYGROUP/MAPDN/test.py
-ln -s $MYGROUP/MAPDN/environments
-ln -s $MYGROUP/MAPDN/args
-ln -s $MYGROUP/MAPDN/trial
-ln -s $MYGROUP/MAPDN/utilities
+
+cp -r $MYGROUP/MAPDN/data_preparation .
+cd data_preparation
+
 # we can delete the line below. It just shows the contents of
 # the /scratch... directory before running Python.
 ls -al
 
 # now run our Python script file
-python ./${SCRIPT} --save-path trial/model_save --alg maddpg --alias 0 --scenario J_50percent --voltage-barrier-type bowl --test-mode batch
+# we can't just call main at the bottom of the file as that causes recursion
+# instead we just import main to kick it off
+python3 ${SCRIPT}
 
-# remove all the symbolic link files (we don't need them)
-# (the actual files that they point to are not affected by this
-# removal)
 
 #############################################
 # Now move the output produced by our Python script from

@@ -164,7 +164,7 @@ class VoltageControl(MultiAgentEnv):
             self.pv_histories = self._get_episode_pv_history()
             self.active_demand_histories = self._get_episode_active_demand_history()
             self.reactive_demand_histories = self._get_episode_reactive_demand_history()
-            self._set_demand_and_pv(add_noise=False)
+            self._set_demand_and_pv(add_noise=True)
             # random initialise action
             if self.args.reset_action:
                 actions = self.get_action()
@@ -185,7 +185,7 @@ class VoltageControl(MultiAgentEnv):
 
         return self.get_obs(), self.get_state()
 
-    def step(self, actions, add_noise=False):
+    def step(self, actions, add_noise=True):
         """function for the interaction between agent and the env each time step"""
         last_powergrid = copy.deepcopy(self.powergrid)
         # check whether the power balance is unsolvable
@@ -205,7 +205,6 @@ class VoltageControl(MultiAgentEnv):
 
         # set the pv and demand for the next time step
         self._set_demand_and_pv(add_noise=add_noise)
-
         # terminate if episode_limit is reached
         self.steps += 1
         self.sum_rewards += reward
@@ -465,7 +464,7 @@ class VoltageControl(MultiAgentEnv):
         history = self.history
         return self.reactive_demand_histories[t : t + history, :]
 
-    def _set_demand_and_pv(self, add_noise=False):
+    def _set_demand_and_pv(self, add_noise=True):
         """optionally update the demand and pv production according to the histories with some i.i.d. gaussian noise"""
         pv = copy.copy(self._get_pv_history()[0, :])
 
@@ -635,7 +634,9 @@ class VoltageControl(MultiAgentEnv):
         info["percentage_of_a_lower_than_lower_v"] = percent_a_below_lower
         info["percentage_of_b_lower_than_lower_v"] = percent_b_below_lower
         info["percentage_of_c_lower_than_lower_v"] = percent_c_below_lower
-
+        
+    
+        
         info["totally_controllable_ratio"] = (
             0.0 if percent_out_of_control > 1e-3 else 1.0
         )
@@ -670,34 +671,6 @@ class VoltageControl(MultiAgentEnv):
         info["average_voltage_a"] = average_v_a
         info["average_voltage_b"] = average_v_b
         info["average_voltage_c"] = average_v_c
-
-        max_voltage_drop_deviation_a = np.max(
-            (v_a < self.v_lower) * (self.v_lower - v_a)
-        )
-        max_voltage_drop_deviation_b = np.max(
-            (v_b < self.v_lower) * (self.v_lower - v_b)
-        )
-        max_voltage_drop_deviation_c = np.max(
-            (v_c < self.v_lower) * (self.v_lower - v_c)
-        )
-
-        max_voltage_rise_deviation_a = np.max(
-            (v_a > self.v_upper) * (v_a - self.v_upper)
-        )
-        max_voltage_rise_deviation_b = np.max(
-            (v_b > self.v_upper) * (v_b - self.v_upper)
-        )
-        max_voltage_rise_deviation_c = np.max(
-            (v_c > self.v_upper) * (v_c - self.v_upper)
-        )
-        info["max_voltage_drop_deviation_a"] = max_voltage_drop_deviation_a
-        info["max_voltage_drop_deviation_b"] = max_voltage_drop_deviation_b
-        info["max_voltage_drop_deviation_c"] = max_voltage_drop_deviation_c
-
-        info["max_voltage_rise_deviation_a"] = max_voltage_rise_deviation_a
-        info["max_voltage_rise_deviation_b"] = max_voltage_rise_deviation_b
-        info["max_voltage_rise_deviation_c"] = max_voltage_rise_deviation_c
-
 
 
         # active power loss

@@ -1,5 +1,7 @@
 input_data/**
 output_data/**
 simulation_graphs/**
+opf_data/**
 !output_data/.folder
 !input_data/.folder
+!opf_data/.folder

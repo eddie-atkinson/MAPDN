@@ -48,7 +48,7 @@ def calculate_use(grid: str, solar: str, solar2: str):
     solar2_val = float(solar2) if solar2 else 0
 
     # This may seem weird but it's explained here: https://docs.google.com/document/d/1_9H9N4cgKmJho7hK8nii6flIGKPycL7tlWEtd4UhVEQ/edit#
-    return grid_val + solar_val + solar2_val
+    return max(grid_val + solar_val + solar2_val, 0)
 
 
 def calculate_net_solar(solar: str, solar2: str):

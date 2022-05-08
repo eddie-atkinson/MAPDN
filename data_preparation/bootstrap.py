@@ -11,7 +11,7 @@ from typing import Tuple, Any
 from datetime import datetime, timedelta
 import random
 
-INPUT_DATA_PATH = Path("./output_data")
+INPUT_DATA_PATH = Path(".")
 
 # Used for creating test and training sets later
 # Dates sourced from: https://www.calendardate.com/year2018.php
@@ -277,19 +277,8 @@ def sample_n_from_each_collection(collections, n):
 
 
 def create_test_train_split(df, test_dates):
-    test_indices = None
-    # We don't care which column we select, we just care about the index
-    col_to_select = df.columns[0]
-    for test_date in test_dates:
-        days_data = get_days_data(df, test_date, col_to_select)
-        if test_indices is None:
-            test_indices = days_data
-        else:
-            test_indices = pd.concat([test_indices, days_data])
-    test_indices = test_indices.index
-    train_indices = ~df.index.isin(test_indices)
-    test_df = df.loc[test_indices]
-    train_df = df.loc[train_indices]
+    train_df = df
+    test_df = train_df.iloc[0]
     return test_df, train_df
 
 

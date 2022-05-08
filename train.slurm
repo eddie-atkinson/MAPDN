@@ -3,9 +3,10 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --export=ALL
-#SBATCH --partition=day
+#SBATCH --partition=week
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=100GB
+#SBATCH --mem-per-cpu=30GB
+#SBATCH --gres=gpu:1
 
 start_time=$( date )
 
@@ -25,7 +26,7 @@ conda activate mapdn
 
 # Below is the Python file that would be run. Replace
 # lab05-sample.py by your own file name.
-SCRIPT=test.py
+SCRIPT=train.py
 
 
 SCRATCH=$MYSCRATCH/run_conda/$SLURM_JOBID
@@ -58,17 +59,17 @@ echo ${SLURM_SUBMIT_DIR}
 # go to the /scratch... directory and create symbolic links to the
 # files for the input data
 cd ${SCRATCH}
-ln -s $MYGROUP/MAPDN/test.py
-ln -s $MYGROUP/MAPDN/environments
-ln -s $MYGROUP/MAPDN/args
-ln -s $MYGROUP/MAPDN/trial
-ln -s $MYGROUP/MAPDN/utilities
+cp -r $MYGROUP/MAPDN .
+mkdir MAPDN/trial
+
 # we can delete the line below. It just shows the contents of
 # the /scratch... directory before running Python.
 ls -al
 
 # now run our Python script file
-python ./${SCRIPT} --save-path trial/model_save --alg maddpg --alias 0 --scenario J_50percent --voltage-barrier-type bowl --test-mode batch
+cd MAPDN
+python ./${SCRIPT} --alg maddpg --alias 0 --mode distributed --scenario J_50percent --voltage-barrier-type bowl --save-path trial
+
 
 # remove all the symbolic link files (we don't need them)
 # (the actual files that they point to are not affected by this

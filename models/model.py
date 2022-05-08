@@ -210,7 +210,6 @@ class Model(nn.Module):
             value = self.value(state_, action_pol)
             _, actual = translate_action(self.args, action, trainer.env)
             # reward
-
             reward, done, info = trainer.env.step(actual)
             reward_repeat = [reward]*trainer.env.get_num_of_agents()
             # next state, action, value
