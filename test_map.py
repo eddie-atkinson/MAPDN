@@ -11,6 +11,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from multiprocessing import Pool
+from collections import namedtuple
+
 
 # N_INTERVALS = 350402
 N_INTERVALS = 10
@@ -26,77 +28,36 @@ def get_timeseries_chunks(length, n_chunks):
     return start_end_chunks
 
 
-parser = argparse.ArgumentParser(description="Train rl agent.")
-parser.add_argument(
-    "--save-path",
-    type=str,
-    nargs="?",
-    default="./",
-    help="Please enter the directory of saving model.",
+Args = namedtuple(
+    "Args",
+    [
+        "alg",
+        "alias",
+        "env",
+        "interval",
+        "mode",
+        "render",
+        "save_path",
+        "scenario",
+        "test_day",
+        "test_mode",
+        "voltage_barrier_type",
+    ],
 )
-parser.add_argument(
-    "--alg", type=str, nargs="?", default="maddpg", help="Please enter the alg name."
+
+argv = Args(
+    alg="maddpg",
+    alias="0",
+    env="var_voltage_control",
+    interval=350400,
+    mode="distributed",
+    render=False,
+    save_path="trial/model_save",
+    scenario="J_50percent",
+    test_day=730,
+    test_mode="batch",
+    voltage_barrier_type="bowl",
 )
-parser.add_argument(
-    "--env",
-    type=str,
-    nargs="?",
-    default="var_voltage_control",
-    help="Please enter the env name.",
-)
-parser.add_argument(
-    "--alias",
-    type=str,
-    nargs="?",
-    default="",
-    help="Please enter the alias for exp control.",
-)
-parser.add_argument(
-    "--mode",
-    type=str,
-    nargs="?",
-    default="distributed",
-    help="Please enter the mode: distributed or decentralised.",
-)
-parser.add_argument(
-    "--scenario",
-    type=str,
-    nargs="?",
-    default="bus33_3min_final",
-    help="Please input the valid name of an environment scenario.",
-)
-parser.add_argument(
-    "--voltage-barrier-type",
-    type=str,
-    nargs="?",
-    default="l1",
-    help="Please input the valid voltage barrier type: l1, courant_beltrami, l2, bowl or bump.",
-)
-parser.add_argument(
-    "--test-mode",
-    type=str,
-    nargs="?",
-    default="single",
-    help="Please input the valid test mode: single or batch.",
-)
-parser.add_argument(
-    "--test-day",
-    type=int,
-    nargs="?",
-    default=730,
-    help="Please input the day you would test if the test mode is single.",
-)
-parser.add_argument(
-    "--interval",
-    type=int,
-    nargs="?",
-    default=350400,
-    help="Please input the interval you would test if the test mode is single.",
-)
-parser.add_argument(
-    "--render", action="store_true", help="Activate the rendering of the environment."
-)
-argv = parser.parse_args()
 
 # load env args
 with open("./args/env_args/" + argv.env + ".yaml", "r") as f:
@@ -106,30 +67,8 @@ data_path[-1] = argv.scenario
 env_config_dict["data_path"] = "/".join(data_path)
 net_topology = argv.scenario
 
-# set the action range
-assert net_topology in [
-    "case33_3min_final",
-    "case141_3min_final",
-    "case322_3min_final",
-    "J_50percent",
-], f"{net_topology} is not a valid scenario."
-if argv.scenario == "case33_3min_final":
-    env_config_dict["action_bias"] = 0.0
-    env_config_dict["action_scale"] = 0.8
-elif argv.scenario == "case141_3min_final":
-    env_config_dict["action_bias"] = 0.0
-    env_config_dict["action_scale"] = 0.6
-elif argv.scenario == "case322_3min_final":
-    env_config_dict["action_bias"] = 0.0
-    env_config_dict["action_scale"] = 0.8
-elif argv.scenario == "J_50percent":
-    env_config_dict["action_bias"] = 0.0
-    env_config_dict["action_scale"] = 1.0
-
-assert argv.mode in [
-    "distributed",
-    "decentralised",
-], "Please input the correct mode, e.g. distributed or decentralised."
+env_config_dict["action_bias"] = 0.0
+env_config_dict["action_scale"] = 1.0
 env_config_dict["mode"] = argv.mode
 env_config_dict["voltage_barrier_type"] = argv.voltage_barrier_type
 
@@ -188,13 +127,6 @@ behaviour_net.load_state_dict(checkpoint["model_state_dict"])
 
 print(f"{args}\n")
 
-if strategy == "pg":
-    test = PGTester(args, behaviour_net, env, argv.render)
-elif strategy == "q":
-    raise NotImplementedError("This needs to be implemented.")
-else:
-    raise RuntimeError("Please input the correct strategy, e.g. pg or q.")
-
 
 def create_df_from_array(array):
     return pd.DataFrame(
@@ -204,9 +136,11 @@ def create_df_from_array(array):
     )
 
 
+test = PGTester(args, behaviour_net, env, argv.render)
+
+
 def run_batch(chunk):
     start, stop = chunk
-    test = PGTester(args, behaviour_net, env, argv.render)
 
     record = test.batch_run(start, stop)
     bus = record["bus"]
@@ -257,17 +191,6 @@ def run_batch(chunk):
 
 
 
-if argv.test_mode == "single":
-    # record = test.run(199, 23, 2) # (day, hour, 3min)
-    # record = test.run(730, 23, 2) # (day, hour, 3min)
-    record = test.run(argv.interval)
-    with open(
-        "test_record_" + log_name + f"_day{argv.test_day}" + ".pickle", "wb"
-    ) as f:
-        pickle.dump(record, f, pickle.HIGHEST_PROTOCOL)
-elif argv.test_mode == "batch":
-    chunks = get_timeseries_chunks(N_INTERVALS, N_CORES)
-    for chunk in chunks:
-        run_batch(chunk)
-    # with Pool(N_CORES) as p:
-    #     p.map(run_batch, chunks)
+chunks = get_timeseries_chunks(N_INTERVALS, N_CORES)
+with Pool(N_CORES) as p:
+    p.map(run_batch, chunks)

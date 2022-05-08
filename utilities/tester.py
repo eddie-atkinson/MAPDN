@@ -4,7 +4,6 @@ import numpy as np
 import time
 
 
-
 class PGTester(object):
     def __init__(self, args, behaviour_net, env, render=False):
         self.env = env
@@ -62,7 +61,7 @@ class PGTester(object):
                 break
         return record
 
-    def batch_run(self, num_epsiodes=100):
+    def batch_run(self, start, stop):
         record = {
             "pv": {
             "pv_smax": [],
@@ -77,12 +76,15 @@ class PGTester(object):
             "vm_a_pu": [],
             "vm_b_pu": [],
             "vm_c_pu": [],
+            "p_a_mw": [],
+            "p_b_mw": [],
+            "p_c_mw": [],
             },
         }
-        state, global_state = self.env.manual_reset(0)
+        state, global_state = self.env.manual_reset(start)
         # init hidden states
         last_hid = self.behaviour_net.policy_dicts[0].init_hidden()
-        for interval in range(296640):
+        for interval in range(start, stop):
             state_ = prep_obs(state).contiguous().view(1, self.n_, self.obs_dim).to(self.device)
             action, _, _, _, hid = self.behaviour_net.get_actions(state_, status='test', exploration=False, actions_avail=th.tensor(self.env.get_avail_actions()), target=False, last_hid=last_hid)
             _, actual = translate_action(self.args, action, self.env)
@@ -100,7 +102,10 @@ class PGTester(object):
             record["bus"]["vm_a_pu"].append(res_bus["vm_a_pu"].to_numpy())
             record["bus"]["vm_b_pu"].append(res_bus["vm_b_pu"].to_numpy())
             record["bus"]["vm_c_pu"].append(res_bus["vm_c_pu"].to_numpy())
-    
+            record["bus"]["p_a_mw"].append(res_bus["p_a_mw"].to_numpy())
+            record["bus"]["p_b_mw"].append(res_bus["p_b_mw"].to_numpy())
+            record["bus"]["p_c_mw"].append(res_bus["p_c_mw"].to_numpy())
+
             next_state = self.env.get_obs()
             if interval % self.env.args.episode_limit == 0:
                 print("Resetting env")
