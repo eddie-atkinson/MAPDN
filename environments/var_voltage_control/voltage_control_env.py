@@ -1091,6 +1091,15 @@ class VoltageControl(MultiAgentEnv):
         obs_zone_dict = dict()
         zone_list = list()
         obs_len_list = list()
+        sgens = self.get_sgen()
+        a = self._get_sgen_on_phase("a")
+        b = self._get_sgen_on_phase("b")
+        c = self._get_sgen_on_phase("c")
+        sgen_map = {
+            "a": sgens.loc[a.index],
+            "b": sgens.loc[b.index],
+            "c": sgens.loc[c.index],
+        }
         for i in range(len(self.get_sgen())):
             obs = list()
             zone_buses, zone, pv, q, sgen_bus = clusters[f"sgen{i}"]
@@ -1107,9 +1116,9 @@ class VoltageControl(MultiAgentEnv):
                         copy_zone_buses.loc[:, f"q_{zone}_mvar"].to_numpy(copy=True)
                     )
                 if "pv" in self.state_space:
-                    obs += list(copy_zone_buses.loc[:, f"p_{zone}_mw"].to_numpy(copy=True))
+                    obs += list(sgen_map[zone][f"p_{zone}_mw"].to_numpy(copy=True))
                 if "reactive" in self.state_space:
-                    obs += list(copy_zone_buses.loc[:, f"q_{zone}_mvar"].to_numpy(copy=True))
+                    obs += list(sgen_map[zone][f"q_{zone}_mvar"].to_numpy(copy=True))
                 if "vm_pu" in self.state_space:
                     obs += list(zone_buses.loc[:, f"vm_{zone}_pu"].to_numpy(copy=True))
                 if "va_degree" in self.state_space:
