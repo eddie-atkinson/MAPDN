@@ -14,18 +14,9 @@ from multiprocessing import Pool
 from collections import namedtuple
 
 
-# N_INTERVALS = 350402
-N_INTERVALS = 10
-N_CORES = 2
+N_INTERVALS = 350400
+N_CORES = 36
 OUTPUT_PATH = Path("./test")
-
-
-def get_timeseries_chunks(length, n_chunks):
-    chunks = np.array_split(np.arange(0, length), n_chunks)
-    start_end_chunks = []
-    for chunk in chunks:
-        start_end_chunks.append((chunk[0], chunk[-1] + 1))
-    return start_end_chunks
 
 
 Args = namedtuple(
@@ -45,87 +36,82 @@ Args = namedtuple(
     ],
 )
 
-argv = Args(
-    alg="maddpg",
-    alias="0",
-    env="var_voltage_control",
-    interval=350400,
-    mode="distributed",
-    render=False,
-    save_path="trial/model_save",
-    scenario="J_50percent",
-    test_day=730,
-    test_mode="batch",
-    voltage_barrier_type="bowl",
-)
 
-# load env args
-with open("./args/env_args/" + argv.env + ".yaml", "r") as f:
-    env_config_dict = yaml.safe_load(f)["env_args"]
-data_path = env_config_dict["data_path"].split("/")
-data_path[-1] = argv.scenario
-env_config_dict["data_path"] = "/".join(data_path)
-net_topology = argv.scenario
+def create_tester(argv):
+    # load env args
+    with open("./args/env_args/" + argv.env + ".yaml", "r") as f:
+        env_config_dict = yaml.safe_load(f)["env_args"]
+    data_path = env_config_dict["data_path"].split("/")
+    data_path[-1] = argv.scenario
+    env_config_dict["data_path"] = "/".join(data_path)
+    net_topology = argv.scenario
 
-env_config_dict["action_bias"] = 0.0
-env_config_dict["action_scale"] = 1.0
-env_config_dict["mode"] = argv.mode
-env_config_dict["voltage_barrier_type"] = argv.voltage_barrier_type
+    env_config_dict["action_bias"] = 0.0
+    env_config_dict["action_scale"] = 1.0
+    env_config_dict["mode"] = argv.mode
+    env_config_dict["voltage_barrier_type"] = argv.voltage_barrier_type
 
-# for one-day test
-env_config_dict["episode_limit"] = 480
+    # for one-day test
+    env_config_dict["episode_limit"] = 480
 
-# load default args
-with open("./args/default.yaml", "r") as f:
-    default_config_dict = yaml.safe_load(f)
-default_config_dict["max_steps"] = 480
+    # load default args
+    with open("./args/default.yaml", "r") as f:
+        default_config_dict = yaml.safe_load(f)
+    default_config_dict["max_steps"] = 480
 
-# load alg args
-with open("./args/alg_args/" + argv.alg + ".yaml", "r") as f:
-    alg_config_dict = yaml.safe_load(f)["alg_args"]
-    alg_config_dict["action_scale"] = env_config_dict["action_scale"]
-    alg_config_dict["action_bias"] = env_config_dict["action_bias"]
+    # load alg args
+    with open("./args/alg_args/" + argv.alg + ".yaml", "r") as f:
+        alg_config_dict = yaml.safe_load(f)["alg_args"]
+        alg_config_dict["action_scale"] = env_config_dict["action_scale"]
+        alg_config_dict["action_bias"] = env_config_dict["action_bias"]
 
-log_name = "-".join(
-    [argv.env, net_topology, argv.mode, argv.alg, argv.voltage_barrier_type, argv.alias]
-)
-alg_config_dict = {**default_config_dict, **alg_config_dict}
+    log_name = "-".join(
+        [
+            argv.env,
+            net_topology,
+            argv.mode,
+            argv.alg,
+            argv.voltage_barrier_type,
+            argv.alias,
+        ]
+    )
+    alg_config_dict = {**default_config_dict, **alg_config_dict}
 
-# define envs
-env = VoltageControl(env_config_dict)
+    # define envs
+    env = VoltageControl(env_config_dict)
 
-alg_config_dict["agent_num"] = env.get_num_of_agents()
-alg_config_dict["obs_size"] = env.get_obs_size()
-alg_config_dict["action_dim"] = env.get_total_actions()
-alg_config_dict["cuda"] = False
-args = convert(alg_config_dict)
+    alg_config_dict["agent_num"] = env.get_num_of_agents()
+    alg_config_dict["obs_size"] = env.get_obs_size()
+    alg_config_dict["action_dim"] = env.get_total_actions()
+    alg_config_dict["cuda"] = False
+    args = convert(alg_config_dict)
 
-# define the save path
-if argv.save_path[-1] is "/":
-    save_path = argv.save_path
-else:
-    save_path = argv.save_path + "/"
+    # define the save path
+    if argv.save_path[-1] is "/":
+        save_path = argv.save_path
+    else:
+        save_path = argv.save_path + "/"
 
-LOAD_PATH = save_path + log_name + "/model.pt"
+    LOAD_PATH = save_path + log_name + "/model.pt"
 
-model = Model[argv.alg]
+    model = Model[argv.alg]
 
-strategy = Strategy[argv.alg]
+    strategy = Strategy[argv.alg]
 
-if args.target:
-    target_net = model(args)
-    behaviour_net = model(args, target_net)
-else:
-    behaviour_net = model(args)
-checkpoint = (
-    torch.load(LOAD_PATH, map_location="cpu")
-    if not args.cuda
-    else torch.load(LOAD_PATH)
-)
+    if args.target:
+        target_net = model(args)
+        behaviour_net = model(args, target_net)
+    else:
+        behaviour_net = model(args)
+    checkpoint = (
+        torch.load(LOAD_PATH, map_location="cpu")
+        if not args.cuda
+        else torch.load(LOAD_PATH)
+    )
 
-behaviour_net.load_state_dict(checkpoint["model_state_dict"])
-
-print(f"{args}\n")
+    behaviour_net.load_state_dict(checkpoint["model_state_dict"])
+    test = PGTester(args, behaviour_net, env, argv.render)
+    return test
 
 
 def create_df_from_array(array):
@@ -136,11 +122,9 @@ def create_df_from_array(array):
     )
 
 
-test = PGTester(args, behaviour_net, env, argv.render)
-
-
 def run_batch(chunk):
-    start, stop = chunk
+    start, stop, argv = chunk
+    test = create_tester(argv)
 
     record = test.batch_run(start, stop)
     bus = record["bus"]
@@ -190,7 +174,30 @@ def run_batch(chunk):
     pv_smax.to_csv(sgen_path / "pv_smax.csv", index=False)
 
 
+def get_timeseries_chunks(length, n_chunks, argv):
+    chunks = np.array_split(np.arange(0, length), n_chunks)
+    start_end_chunks = []
+    for chunk in chunks:
+        chunk = (chunk[0], chunk[-1] + 1, argv)
+        start_end_chunks.append(chunk)
+    return start_end_chunks
 
-chunks = get_timeseries_chunks(N_INTERVALS, N_CORES)
-with Pool(N_CORES) as p:
-    p.map(run_batch, chunks)
+
+if __name__ == "__main__":
+    argv = Args(
+        alg="maddpg",
+        alias="0",
+        env="var_voltage_control",
+        interval=350400,
+        mode="distributed",
+        render=False,
+        save_path="trial/model_save",
+        scenario="J_50percent",
+        test_day=730,
+        test_mode="batch",
+        voltage_barrier_type="bowl",
+    )
+
+    chunks = get_timeseries_chunks(N_INTERVALS, N_CORES, argv)
+    with Pool(N_CORES) as p:
+        p.map(run_batch, chunks)
